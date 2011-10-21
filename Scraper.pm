@@ -30,7 +30,7 @@ sub search_tags {
 			
 			$cb->( {
 				items => _tag_list([ grep { $_->{name} =~ /\Q$search\E/i } @$items ])
-			} );
+			}, $search );
 		},
 		$params,
 	);

@@ -19,6 +19,10 @@ my $log = Slim::Utils::Log->addLogCategory( {
 } );
 
 use constant PLUGIN_TAG => 'bandcamp';
+use constant MAX_RECENT_ITEMS => 20;
+use constant RECENT_CACHE_TTL => 60*60*24*365;
+
+my $cache = Slim::Utils::Cache->new;
 
 sub initPlugin {
 	my $class = shift;
@@ -66,6 +70,11 @@ sub handleFeed {
 				name => cstring($client, 'PLUGIN_BANDCAMP_LOCATIONS'),
 				type => 'link',
 				url  => \&Plugins::Bandcamp::Scraper::get_locations,
+			},
+			{
+				name => cstring($client, 'RECENT_SEARCHES'),
+				type => 'link',
+				url  => \&recent_searches,
 			}
 		],
 	});
@@ -73,33 +82,39 @@ sub handleFeed {
 
 my $search_results = {};
 sub search {
-	my ($client, $cb, $params, $search) = @_;
-	
+	my ($client, $cb, $params, $args) = @_;
+
+	$params->{search} ||= $args->{q};
+
 	$search_results->{$client || ''} = {};
 	
 	Plugins::Bandcamp::API::search_artists($client,
 		sub {
-			my $items = shift;
+			my ($items, $search) = @_;
+			
+			add_recent_search($search);
+			
 			$search_results->{$client || ''}->{'artist_search'} = $items;
-			_search_done($client, $cb, $items);
+			_search_done($client, $cb, $items, $search);
 		}, 
 		$params, 
-		$search
 	);
 	
 	Plugins::Bandcamp::Scraper::search_tags($client,
 		sub {
-			my $items = shift;
+			my ($items, $search) = @_;
+			
+			add_recent_search($search);
+			
 			$search_results->{$client || ''}->{'tag_search'} = $items;
-			_search_done($client, $cb, $items);
+			_search_done($client, $cb, $items, $search);
 		}, 
-		$params, 
-		$search
+		$params,
 	);
 }
 
 sub _search_done {
-	my ($client, $cb, $items) = @_;
+	my ($client, $cb, $items, $search) = @_;
 	
 	return unless $search_results->{$client || ''}->{'tag_search'} && $search_results->{$client || ''}->{'artist_search'};
 
@@ -109,17 +124,72 @@ sub _search_done {
 			@{$search_results->{$client || ''}->{'artist_search'}->{items}} 
 	];
 	
-	$items = [{
-		name => cstring($client, 'EMPTY'),
-		type => 'text',
-	}] if !scalar @$items;
+	if (!scalar @$items) {
+		remove_recent_search($search);
+		
+		$items = [{
+			name => cstring($client, 'EMPTY'),
+			type => 'text',
+		}];
+	}
 	
 	$cb->( { 
 		items => $items
 	} );
 }
 
-my $cache = Slim::Utils::Cache->new;
+sub add_recent_search {
+	_recent_search(shift, 1);
+}
+
+sub remove_recent_search {
+	_recent_search(shift);
+}
+
+sub get_recent_searches {
+	return _recent_search();
+}
+
+sub _recent_search {
+	my ($search, $add) = @_;
+	
+	my $recent = $cache->get('plugin_bandcamp_recent_searches') || [];
+	$recent = [] if ref $recent ne 'ARRAY';
+	
+	if (defined $search) {	
+		# remove if already in list 
+		@$recent = grep { $_ ne $search } @$recent;
+		
+		unshift @$recent, $search if $add;
+	
+		$cache->set('plugin_bandcamp_recent_searches', [ splice(@$recent, 0, MAX_RECENT_ITEMS) ], RECENT_CACHE_TTL);
+	}
+	
+	return $recent;
+}
+
+sub recent_searches {
+	my ($client, $cb, $args) = @_;
+
+	my $recent = _recent_search();
+	
+	my $items = [];
+	
+	foreach (@$recent) {
+		push @$items, {
+			type => 'link',
+			name => $_,
+			url  => \&search,
+			passthrough => [{
+				q => $_
+			}],
+		}
+	}
+	
+	$cb->({
+		items => $items
+	});
+}
 
 sub metadata_provider {
 	my ( $client, $url ) = @_;
@@ -129,7 +199,7 @@ sub metadata_provider {
 		cover  => __PACKAGE__->_pluginDataFor('icon'),
 	};
 	
-	if (my $cached = $cache->get($url)) {
+	if (my $cached = $cache->get('plugin_bandcamp_meta_' . $url)) {
 		$meta = {
 			title    => $cached->{title},
 			artist   => $cached->{album} . ' - ' . $cached->{artist},

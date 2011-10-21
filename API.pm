@@ -38,7 +38,7 @@ sub search_artists {
 			my $items = shift;
 			$cb->( {
 				items => _artist_list($items)
-			}, @_ );
+			}, $search );
 		}, 
 		$params, 
 		{
@@ -121,6 +121,11 @@ sub _album_list {
 			}],
 		};
 	}
+
+	return [ {
+		name => string('EMPTY'),
+		type => 'text',
+	} ] if !scalar @$albums;
 	
 	return $albums;
 }
@@ -236,7 +241,7 @@ sub _track_list {
 		$track->{album_url} ||= $items->{url};
 		
 		# cache metadata a little longer...
-		$cache->set($track->{streaming_url}, $track, CACHE_TTL * 5);
+		$cache->set('plugin_bandcamp_meta_' . $track->{streaming_url}, $track, CACHE_TTL * 5);
 	}
 	
 	return $tracks;
