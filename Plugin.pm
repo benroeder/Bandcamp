@@ -70,24 +70,22 @@ my $search_results = {};
 sub search {
 	my ($client, $cb, $params, $search) = @_;
 	
-	$search_results->{$client} = [];
+	$search_results->{$client || ''} = {};
 	
-	$client->pluginData('artist_search', 0);
 	Plugins::Bandcamp::API::search_artists($client,
 		sub {
 			my $items = shift;
-			$client->pluginData('artist_search', 1);
+			$search_results->{$client || ''}->{'artist_search'} = $items;
 			_search_done($client, $cb, $items);
 		}, 
 		$params, 
 		$search
 	);
 	
-	$client->pluginData('tag_search', 0);
 	Plugins::Bandcamp::Scraper::search_tags($client,
 		sub {
 			my $items = shift;
-			$client->pluginData('tag_search', 1);
+			$search_results->{$client || ''}->{'tag_search'} = $items;
 			_search_done($client, $cb, $items);
 		}, 
 		$params, 
@@ -98,14 +96,16 @@ sub search {
 sub _search_done {
 	my ($client, $cb, $items) = @_;
 	
-	push @{ $search_results->{$client} }, @{$items->{items}};
-	
-	return unless $client->pluginData('artist_search') && $client->pluginData('tag_search');
+	return unless $search_results->{$client || ''}->{'tag_search'} && $search_results->{$client || ''}->{'artist_search'};
 
-	warn Data::Dump::dump($search_results->{$client}); 
+	my $items = [ 
+		sort { uc($a->{name}) cmp uc($b->{name}) } 
+			@{$search_results->{$client || ''}->{'tag_search'}->{items}}, 
+			@{$search_results->{$client || ''}->{'artist_search'}->{items}} 
+	]; 
 	
 	$cb->( { 
-		items => $search_results->{$client} 
+		items => $items
 	} );
 }
 

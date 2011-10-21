@@ -6,6 +6,7 @@ use HTML::TreeBuilder;
 use Scalar::Util qw(blessed);
 
 use Slim::Networking::SimpleAsyncHTTP;
+use Slim::Utils::Cache;
 use Slim::Utils::Log;
 
 use Plugins::Bandcamp::API;
@@ -153,7 +154,6 @@ sub get_tag_albums {
 	
 	if (my $cached = $cache->get('plugin_bandcamp_tag_album_' . $args->{tag_url})) {
 		$log->debug('found cached album list');
-		logBacktrace('');
 		_tag_album_list($cb, $cached);
 		return;
 	}
@@ -232,7 +232,7 @@ sub _tag_album_list {
 			name  => $_->{album} . ($_->{artist} ? ' - ' . $_->{artist} : ''),
 			line1 => $_->{artist} ? $_->{album} : undef,
 			line2 => $_->{artist},
-			url   => \&Plugins::Bandcamp::API::get_albums_by_url,
+			url   => \&Plugins::Bandcamp::API::get_album_tracks_by_url,
 			image => $_->{image},
 			passthrough => [{ album_url => $_->{url} }],
 		};
