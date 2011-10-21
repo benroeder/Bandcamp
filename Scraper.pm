@@ -12,7 +12,7 @@ use Slim::Utils::Log;
 use Plugins::Bandcamp::API;
 
 use constant TAGS_BASE_URL => 'http://bandcamp.com/tags/';
-use constant CACHE_TTL     => 3600;
+use constant CACHE_TTL     => 3600 * 12;
 
 my $log = logger('plugin.bandcamp');
 

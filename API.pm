@@ -15,7 +15,7 @@ use constant API_URL_ALBUM => 'http://api.bandcamp.com/api/album/2/';
 use constant API_URL_BAND  => 'http://api.bandcamp.com/api/band/3/';
 use constant API_URL_TRACK => 'http://api.bandcamp.com/api/track/1/';
 use constant API_URL_URL   => 'http://api.bandcamp.com/api/url/1/info';
-use constant CACHE_TTL     => 3600;
+use constant CACHE_TTL     => 3600 * 12;
 
 
 my $log = logger('plugin.bandcamp');
@@ -111,6 +111,7 @@ sub _album_list {
 				album_id  => $album->{album_id},
 				album_url => $album->{url},
 				band_id   => $album->{band_id},
+				artist    => $album->{artist},
 				tracks    => 1,
 			}],
 		};
@@ -153,6 +154,7 @@ sub get_album_info {
 	_get($client, 
 		sub {
 			my $albumInfo = shift;
+			$albumInfo->{artist} ||= $args->{artist};
 			
 			return [ {
 				name => $albumInfo->{error},
@@ -194,7 +196,7 @@ sub get_album_info {
 			} if $albumInfo->{credits};
 			
 			if ($get_tracks) {
-				push @$items, @{ _track_list($albumInfo->{tracks}) };
+				push @$items, @{ _track_list($albumInfo) };
 			}
 			
 			$cb->( $items, @_ );
@@ -209,15 +211,26 @@ sub get_album_info {
 
 sub _track_list {
 	my $items = shift;
+
+	my $cache = Slim::Utils::Cache->new();
 	
 	my $tracks = [];
-	foreach my $track (@{$items}) {
+	foreach my $track (@{$items->{tracks}}) {
 		push @$tracks, {
 			type  => 'audio',
 			name  => $track->{title},
 			url   => $track->{streaming_url},
 			image => $track->{large_art_url},
+			playall => 1,
 		};
+		
+		$track->{artist} ||= $items->{artist};
+		$track->{album}  ||= $items->{title};
+		$track->{image}  ||= $items->{large_art_url} || $items->{small_art_url};
+		$track->{album_url} ||= $items->{url};
+		
+		# cache metadata a little longer...
+		$cache->set($track->{streaming_url}, $track, CACHE_TTL * 5);
 	}
 	
 	return $tracks;

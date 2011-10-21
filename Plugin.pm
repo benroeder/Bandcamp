@@ -32,6 +32,12 @@ sub initPlugin {
 		is_app => 1,
 		weight => 1,
 	);
+	
+	Slim::Formats::RemoteMetadata->registerProvider(
+		match => qr/bandcamp\.com\/download\/track/i,
+		func  => \&metadata_provider,
+	);
+	
 }
 
 sub getDisplayName { 'PLUGIN_BANDCAMP' }
@@ -109,5 +115,31 @@ sub _search_done {
 	} );
 }
 
+my $cache = Slim::Utils::Cache->new;
+
+sub metadata_provider {
+	my ( $client, $url ) = @_;
+
+	my $meta = {
+		title => Slim::Music::Info::getCurrentTitle(shift),
+		cover  => __PACKAGE__->_pluginDataFor('icon'),
+	};
+	
+	if (my $cached = $cache->get($url)) {
+		$meta = {
+			title    => $cached->{title},
+			artist   => $cached->{album} . ' - ' . $cached->{artist},
+			# we'll abuse the album name for the album URL to satisfy the terms of use...
+			album    => $cached->{album_url},
+			duration => $cached->{duration},
+			cover    => $cached->{image},
+#			bitrate  => '128k CBR',
+#			type     => 'MP3 (bandcamp.com)',
+#			icon     => __PACKAGE__->getIcon(),
+		} 
+	}
+	
+	return $meta;
+}
 
 1;
