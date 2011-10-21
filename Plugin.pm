@@ -3,6 +3,7 @@ package Plugins::Bandcamp::Plugin;
 use strict;
 use base qw(Slim::Plugin::OPMLBased);
 use JSON::XS::VersionOneAndTwo;
+use Storable;
 
 use Slim::Utils::Log;
 use Slim::Utils::Prefs;
@@ -27,7 +28,7 @@ sub initPlugin {
 	$class->SUPER::initPlugin(
 		feed   => \&handleFeed,
 		tag    => PLUGIN_TAG,
-		menu   => 'my_apps',
+		menu   => 'radios',
 		is_app => 1,
 		weight => 1,
 	);
@@ -40,49 +41,77 @@ sub playerMenu { 'MY_APPS' }
 
 
 sub handleFeed {
-	my ($client, $cb, $params, $args) = @_;
+	my ($client, $cb, $args) = @_;
 	
-	my $p = $params->{params};
+	my $params = $args->{params};
 	
-	if (my $search = $p->{q}) {
-		Plugins::Bandcamp::API::search_artists($client, $cb, $params, $search);
-	}
-#	elsif (my $artist = $q->param('artist')) {
-#		$items = get_artist_albums($artist);
-#	}
-#	elsif (my $album = $q->param('albumtracks')) {
-#		$items = get_album_tracks($album);
-#	}
-	elsif ($args->{tags}) {
-		Plugins::Bandcamp::Scraper::get_tags($client, $cb, $params);
-	}
-	elsif ($args->{locations}) {
-		Plugins::Bandcamp::Scraper::get_locations($client, $cb, $params);
-	}
-	else {
-		$cb->({
-			items => [
-				{
-					name => cstring($client, 'SEARCH'),
-					type => 'search',
-					url  => \&handleFeed,
-					passthrough => [ { q => '{QUERY}' } ]
-				},
-				{
-					name => cstring($client, 'PLUGIN_BANDCAMP_TAGS'),
-					type => 'link',
-					url  => \&handleFeed,
-					passthrough => [ { tags => 1 } ],
-				},
-				{
-					name => cstring($client, 'PLUGIN_BANDCAMP_LOCATIONS'),
-					type => 'link',
-					url  => \&handleFeed,
-					passthrough => [ { locations => 1 } ]
-				}
-			],
-		});
-	}
+	$cb->({
+		items => [
+			{
+				name  => cstring($client, 'SEARCH'),
+				type => 'search',
+				url  => \&Plugins::Bandcamp::API::search_artists
+			},
+			{
+				name => cstring($client, 'PLUGIN_BANDCAMP_TAGS'),
+				type => 'link',
+				url  => \&Plugins::Bandcamp::Scraper::get_tags,
+			},
+			{
+				name => cstring($client, 'PLUGIN_BANDCAMP_LOCATIONS'),
+				type => 'link',
+				url  => \&Plugins::Bandcamp::Scraper::get_locations,
+			}
+		],
+	});
+}
+
+my $search_results = {};
+sub search {
+	my ($client, $cb, $params, $search) = @_;
+	
+	$search_results->{$client} = [];
+	
+	$client->pluginData('artist_search', 0);
+	Plugins::Bandcamp::API::search_artists($client,
+		sub {
+			my $items = shift;
+			$client->pluginData('artist_search', 1);
+			
+			$log->debug('found artists: ' . Data::Dump::dump($items));
+			_search_done($client, $cb, $items);
+		}, 
+		$params, 
+		$search
+	);
+	
+#	$client->pluginData('tag_search', 0);
+#	Plugins::Bandcamp::Scraper::search_tags($client,
+#		sub {
+#			my $items = shift;
+#			
+#			$client->pluginData('tag_search', 1);
+#			
+#			$log->debug('found tags: ' . Data::Dump::dump($items));
+#			_search_done($client, $cb, $items);
+#		}, 
+#		$params, 
+#		$search
+#	);
+}
+
+sub _search_done {
+	my ($client, $cb, $items) = @_;
+	
+	push @{ $search_results->{$client} }, @{$items->{items}};
+	
+	#return unless $client->pluginData('artist_search') && $client->pluginData('tag_search');
+
+	warn Data::Dump::dump($search_results->{$client}); 
+	
+	$cb->( { 
+		items => $search_results->{$client} 
+	} );
 }
 
 

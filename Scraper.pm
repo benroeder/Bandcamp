@@ -11,7 +11,7 @@ use Slim::Utils::Log;
 use Plugins::Bandcamp::API;
 
 use constant TAGS_BASE_URL => 'http://bandcamp.com/tags/';
-use constant CACHE_TTL     => 60;
+use constant CACHE_TTL     => 3600;
 
 my $log = logger('plugin.bandcamp');
 
@@ -21,7 +21,7 @@ sub search_tags {
 	_get_tag_list($client,
 		sub {
 			my $items = shift;
-			$cb->( _tag_list( grep /$search/i, @$items ) );
+			$cb->( _tag_list([ grep { $_->{name} =~ /\Q$search\E/i } @$items ]) );
 		},
 		$params,
 	);
@@ -141,7 +141,7 @@ sub get_tag_albums {
 
 	my $cache = Slim::Utils::Cache->new;
 	
-	if (my $cached = $cache->get('plugin_bandcamp_tag_album')) {
+	if (my $cached = $cache->get('plugin_bandcamp_tag_album_' . $args->{tag_url})) {
 		$log->debug('found cached album list');
 		_tag_album_list($cb, $cached);
 		return;
@@ -186,7 +186,7 @@ sub get_tag_albums {
 
 				@$result = sort { uc($a->{name}) cmp uc($b->{name}) } @$result;
 				
-				$cache->set( 'plugin_bandcamp_tag_album', $result, CACHE_TTL );
+				$cache->set( 'plugin_bandcamp_tag_album_' . $args->{tag_url}, $result, CACHE_TTL );
 			}
 			else {
 				$log->error("Invalid data");
