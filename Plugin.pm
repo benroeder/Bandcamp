@@ -14,7 +14,7 @@ use Plugins::Bandcamp::Scraper;
 
 my $log = Slim::Utils::Log->addLogCategory( {
 	category     => 'plugin.bandcamp',
-	defaultLevel => 'DEBUG',
+	defaultLevel => 'ERROR',
 	description  => 'PLUGIN_BANDCAMP',
 } );
 
@@ -158,7 +158,7 @@ sub _recent_search {
 	
 	if (defined $search) {	
 		# remove if already in list 
-		@$recent = grep { $_ ne $search } @$recent;
+		@$recent = grep { lc($_) ne lc($search) } @$recent;
 		
 		unshift @$recent, $search if $add;
 	

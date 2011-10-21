@@ -260,7 +260,7 @@ sub _get {
 	
 	my $cache = Slim::Utils::Cache->new;
 	if (my $cached = $cache->get('plugin_bandcamp_api_' . $url)) {
-		$log->debug('found cached api response' . Data::Dump::dump($cached));
+		main::DEBUGLOG && $log->debug('found cached api response' . Data::Dump::dump($cached));
 		$cb->($cached);
 		return;
 	}
@@ -286,8 +286,9 @@ sub _get {
 					};
 					$log->error($result->{error});
 				}
-				
-				$cache->set('plugin_bandcamp_api_' . $url, $result, CACHE_TTL);
+				else {
+					$cache->set('plugin_bandcamp_api_' . $url, $result, CACHE_TTL);
+				}
 			}
 			else {
 				$log->error("Invalid data");
