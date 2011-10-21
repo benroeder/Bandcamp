@@ -10,15 +10,20 @@ use Slim::Utils::Log;
 use Slim::Utils::Cache;
 use Slim::Utils::Strings qw(string cstring);
 
-use constant API_KEY       => 'perladruslasaemingserligr';
 use constant API_URL_ALBUM => 'http://api.bandcamp.com/api/album/2/';
 use constant API_URL_BAND  => 'http://api.bandcamp.com/api/band/3/';
 use constant API_URL_TRACK => 'http://api.bandcamp.com/api/track/1/';
 use constant API_URL_URL   => 'http://api.bandcamp.com/api/url/1/info';
 use constant CACHE_TTL     => 3600 * 12;
 
-
 my $log = logger('plugin.bandcamp');
+
+my $dk;
+
+sub init {
+	$dk = shift;
+	$dk =~ s/-//g;
+}
 
 sub search_artists {
 	my ($client, $cb, $args) = @_;
@@ -240,7 +245,7 @@ sub _track_list {
 sub _get {
 	my ( $client, $cb, $params, $args ) = @_;
 	
-	my $url = (delete $args->{_url}) . '?key=' . API_KEY;
+	my $url = (delete $args->{_url}) . '?key=' . $dk;
 		
 	for my $k ( keys %{$args} ) {
 		$url .= '&' . $k . '=' . URI::Escape::uri_escape_utf8( Encode::decode( 'utf8', $args->{$k} ) );

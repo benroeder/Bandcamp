@@ -12,8 +12,6 @@ use Slim::Utils::Strings qw(string cstring);
 use Plugins::Bandcamp::API;
 use Plugins::Bandcamp::Scraper;
 
-#my $prefs = preferences('plugin.bandcamp');
-
 my $log = Slim::Utils::Log->addLogCategory( {
 	category     => 'plugin.bandcamp',
 	defaultLevel => 'DEBUG',
@@ -37,7 +35,8 @@ sub initPlugin {
 		match => qr/bandcamp\.com\/download\/track/i,
 		func  => \&metadata_provider,
 	);
-	
+
+	Plugins::Bandcamp::API::init( $class->_pluginDataFor('dk') );	
 }
 
 sub getDisplayName { 'PLUGIN_BANDCAMP' }
@@ -108,7 +107,12 @@ sub _search_done {
 		sort { uc($a->{name}) cmp uc($b->{name}) } 
 			@{$search_results->{$client || ''}->{'tag_search'}->{items}}, 
 			@{$search_results->{$client || ''}->{'artist_search'}->{items}} 
-	]; 
+	];
+	
+	$items = [{
+		name => cstring($client, 'EMPTY'),
+		type => 'text',
+	}] if !scalar @$items;
 	
 	$cb->( { 
 		items => $items
