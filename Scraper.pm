@@ -229,6 +229,7 @@ sub _tag_album_list {
 
 	foreach (@$items) {
 		push @$result, {
+			type  => 'playlist',
 			name  => $_->{album} . ($_->{artist} ? ' - ' . $_->{artist} : ''),
 			line1 => $_->{artist} ? $_->{album} : undef,
 			line2 => $_->{artist},
@@ -236,6 +237,7 @@ sub _tag_album_list {
 			image => $_->{image},
 			passthrough => [{
 				album_url => $_->{url},
+				artist    => $_->{artist},
 				tracks    => 1,
 			}],
 		};

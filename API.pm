@@ -132,7 +132,8 @@ sub get_album_info_by_url {
 			my $items = shift;
 			get_album_info($client, $cb,$params, { 
 				album_id => $items->{album_id}, 
-				tracks => $args->{tracks},
+				tracks   => $args->{tracks},
+				artist   => $args->{artist},
 			});
 		}, 
 		$params, 

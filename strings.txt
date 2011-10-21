@@ -1,5 +1,5 @@
 PLUGIN_BANDCAMP
-	EN	Band's Camp
+	EN	Band's Campout
 
 PLUGIN_BANDCAMP_META
 	EN	Browse and play artists and tracks from bandcamp.com
