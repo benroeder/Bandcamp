@@ -119,7 +119,7 @@ sub _get_tag_list {
 
 				@$result = sort { uc($a->{name}) cmp uc($b->{name}) } @$result;
 
-				main::DEBUGLOG && $log->debug(Data::Dump::dump($result));
+#				main::DEBUGLOG && $log->debug(Data::Dump::dump($result));
 				
 				$cache->set( 'plugin_bandcamp_taglist', $result, CACHE_TTL );
 			}

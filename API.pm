@@ -57,7 +57,7 @@ sub _artist_list {
 			name  => $artist->{name},
 			line1 => $artist->{offsite_url} ? $artist->{name} : undef,
 			line2 => $artist->{offsite_url} || undef,
-			_url  => \&get_artist_albums,
+			url   => \&get_artist_albums,
 			passthrough => [{
 				band_id => $artist->{band_id},
 			}],
@@ -105,7 +105,7 @@ sub _album_list {
 			name  => $album->{title} . ($album->{artist} ? ' - ' . $album->{artist} : ''),
 			line1 => $album->{artist} ? $album->{album} : undef,
 			line2 => $album->{artist},
-			_url  => \&get_album_info,
+			url   => \&get_album_info,
 			image => $album->{large_art_url},
 			passthrough => [{ 
 				album_id  => $album->{album_id},
@@ -158,31 +158,27 @@ sub get_album_info {
 				name => $albumInfo->{error},
 				type => 'text',
 			} ] if $albumInfo->{error};
-	
-			my $items = [
-				{
-					name => $albumInfo->{title},
-					type => 'text'
-				},
-				{
-					name => (
-						cstring($client, $albumInfo->{downloadable} 
-							? ($albumInfo->{downloadable} = 1 ? 'PLUGIN_BANDCAMP_FREE' : 'PLUGIN_BANDCAMP_PAID')
-							: 'PLUGIN_BANDCAMP_NO_DOWNLOAD'
-						)
-					),
-					type => 'text',
-				},
-				{
-					name => $albumInfo->{url},
-					type => 'text'
-				},
-			];
+
+			my $items = [];
+
+			push @$items, {
+				name => (
+					cstring($client, $albumInfo->{downloadable} 
+						? ($albumInfo->{downloadable} == 1 ? 'PLUGIN_BANDCAMP_FREE' : 'PLUGIN_BANDCAMP_PAID')
+						: 'PLUGIN_BANDCAMP_NO_DOWNLOAD'
+					)
+				),
+				type => 'text',
+			},
+			{
+				name => $albumInfo->{url},
+				type => 'text'
+			} if ($albumInfo->{downloadable} && $albumInfo->{url});
 
 			push @$items, {
 				name => cstring($client, 'PLUGIN_BANDCAMP_ABOUT'),
 				items => [{
-					name => $albumInfo->{about},
+					name => _cleanup($albumInfo->{about}),
 					type => 'text',
 					wrap => 1,
 				}]
@@ -191,7 +187,7 @@ sub get_album_info {
 			push @$items, {
 				name => cstring($client, 'PLUGIN_BANDCAMP_CREDITS'),
 				items => [{
-					name => $albumInfo->{credits},
+					name => _cleanup($albumInfo->{credits}),
 					type => 'text',
 					wrap => 1,
 				}]
@@ -240,7 +236,7 @@ sub _get {
 	
 	my $cache = Slim::Utils::Cache->new;
 	if (my $cached = $cache->get('plugin_bandcamp_api_' . $url)) {
-		$log->debug('found cached api response');
+		$log->debug('found cached api response' . Data::Dump::dump($cached));
 		$cb->($cached);
 		return;
 	}
@@ -292,6 +288,12 @@ sub _get {
 	)->get($url);
 }
 
-
+sub _cleanup {
+	my $text = shift;
+	
+	$text =~ s/\r\n/\n/g;
+	
+	return $text;
+}
 
 1;

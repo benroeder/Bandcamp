@@ -15,10 +15,10 @@ PLUGIN_BANDCAMP_NO_DOWNLOAD
 	EN	Not downloadable
 	
 PLUGIN_BANDCAMP_FREE
-	EN	Free download
+	EN	Download album for free!
 
 PLUGIN_BANDCAMP_PAID
-	EN	Paid download
+	EN	Download album from the following address:
 
 PLUGIN_BANDCAMP_ABOUT
 	EN	About this album
