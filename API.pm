@@ -14,7 +14,7 @@ use constant API_KEY       => 'perladruslasaemingserligr';
 use constant API_URL_ALBUM => 'http://api.bandcamp.com/api/album/2/';
 use constant API_URL_BAND  => 'http://api.bandcamp.com/api/band/3/';
 use constant API_URL_TRACK => 'http://api.bandcamp.com/api/track/1/';
-use constant API_URL_URL   => 'http://api.bandcamp.com/api/url/1/';
+use constant API_URL_URL   => 'http://api.bandcamp.com/api/url/1/info';
 use constant CACHE_TTL     => 3600;
 
 
@@ -37,7 +37,7 @@ sub search_artists {
 		}, 
 		$params, 
 		{
-			url  => API_URL_BAND . 'search',
+			_url => API_URL_BAND . 'search',
 			name => $search,
 		}
 	);
@@ -57,7 +57,7 @@ sub _artist_list {
 			name  => $artist->{name},
 			line1 => $artist->{offsite_url} ? $artist->{name} : undef,
 			line2 => $artist->{offsite_url} || undef,
-			url   => \&get_artist_albums,
+			_url  => \&get_artist_albums,
 			passthrough => [{
 				band_id => $artist->{band_id},
 			}],
@@ -84,7 +84,7 @@ sub get_artist_albums {
 		}, 
 		$params, 
 		{
-			url     => API_URL_BAND . 'discography',
+			_url    => API_URL_BAND . 'discography',
 			band_id => $band_id,
 		}
 	);
@@ -105,7 +105,7 @@ sub _album_list {
 			name  => $album->{title} . ($album->{artist} ? ' - ' . $album->{artist} : ''),
 			line1 => $album->{artist} ? $album->{album} : undef,
 			line2 => $album->{artist},
-			url   => \&get_album_info,
+			_url  => \&get_album_info,
 			image => $album->{large_art_url},
 			passthrough => [{ 
 				album_id  => $album->{album_id},
@@ -117,6 +117,29 @@ sub _album_list {
 	}
 	
 	return $albums;
+}
+
+sub get_album_info_by_url {
+	my ($client, $cb, $params, $args) = @_;
+	
+	my $album_url  = $args->{album_url};
+	
+	$log->debug("Getting album information for album url: $album_url");
+	
+	_get($client, 
+		sub {
+			my $items = shift;
+			get_album_info($client, $cb,$params, { 
+				album_id => $items->{album_id}, 
+				tracks => $args->{tracks},
+			});
+		}, 
+		$params, 
+		{
+			_url   => API_URL_URL,
+			url    => $album_url,
+		}
+	);
 }
 
 sub get_album_info {
@@ -182,7 +205,7 @@ sub get_album_info {
 		}, 
 		$params, 
 		{
-			url      => API_URL_ALBUM . 'info',
+			_url     => API_URL_ALBUM . 'info',
 			album_id => $album_id,
 		}
 	);
@@ -207,7 +230,7 @@ sub _track_list {
 sub _get {
 	my ( $client, $cb, $params, $args ) = @_;
 	
-	my $url = (delete $args->{url}) . '?key=' . API_KEY;
+	my $url = (delete $args->{_url}) . '?key=' . API_KEY;
 		
 	for my $k ( keys %{$args} ) {
 		$url .= '&' . $k . '=' . URI::Escape::uri_escape_utf8( Encode::decode( 'utf8', $args->{$k} ) );

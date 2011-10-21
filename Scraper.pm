@@ -232,9 +232,12 @@ sub _tag_album_list {
 			name  => $_->{album} . ($_->{artist} ? ' - ' . $_->{artist} : ''),
 			line1 => $_->{artist} ? $_->{album} : undef,
 			line2 => $_->{artist},
-			url   => \&Plugins::Bandcamp::API::get_album_tracks_by_url,
+			url   => \&Plugins::Bandcamp::API::get_album_info_by_url,
 			image => $_->{image},
-			passthrough => [{ album_url => $_->{url} }],
+			passthrough => [{
+				album_url => $_->{url},
+				tracks    => 1,
+			}],
 		};
 	}	
 	

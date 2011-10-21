@@ -8,6 +8,7 @@
   <homepageURL>http://www.herger.net/Bandcamp</homepageURL>
   <id>adcdd91b-2850-445a-a8bf-e947bf72eacd</id>
   <module>Plugins::Bandcamp::Plugin</module>
+  <icon>plugins/Bandcamp/html/images/logo.png</icon>
   <targetApplication>
     <id>SqueezeCenter</id>
     <maxVersion>*</maxVersion>
