@@ -50,7 +50,7 @@ sub handleFeed {
 			{
 				name  => cstring($client, 'SEARCH'),
 				type => 'search',
-				url  => \&Plugins::Bandcamp::API::search_artists
+				url  => \&search
 			},
 			{
 				name => cstring($client, 'PLUGIN_BANDCAMP_TAGS'),
@@ -77,27 +77,22 @@ sub search {
 		sub {
 			my $items = shift;
 			$client->pluginData('artist_search', 1);
-			
-			$log->debug('found artists: ' . Data::Dump::dump($items));
 			_search_done($client, $cb, $items);
 		}, 
 		$params, 
 		$search
 	);
 	
-#	$client->pluginData('tag_search', 0);
-#	Plugins::Bandcamp::Scraper::search_tags($client,
-#		sub {
-#			my $items = shift;
-#			
-#			$client->pluginData('tag_search', 1);
-#			
-#			$log->debug('found tags: ' . Data::Dump::dump($items));
-#			_search_done($client, $cb, $items);
-#		}, 
-#		$params, 
-#		$search
-#	);
+	$client->pluginData('tag_search', 0);
+	Plugins::Bandcamp::Scraper::search_tags($client,
+		sub {
+			my $items = shift;
+			$client->pluginData('tag_search', 1);
+			_search_done($client, $cb, $items);
+		}, 
+		$params, 
+		$search
+	);
 }
 
 sub _search_done {
@@ -105,7 +100,7 @@ sub _search_done {
 	
 	push @{ $search_results->{$client} }, @{$items->{items}};
 	
-	#return unless $client->pluginData('artist_search') && $client->pluginData('tag_search');
+	return unless $client->pluginData('artist_search') && $client->pluginData('tag_search');
 
 	warn Data::Dump::dump($search_results->{$client}); 
 	

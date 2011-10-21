@@ -16,12 +16,20 @@ use constant CACHE_TTL     => 3600;
 my $log = logger('plugin.bandcamp');
 
 sub search_tags {
-	my ($client, $cb, $params, $search) = @_;
+	my ($client, $cb, $args) = @_;
+
+	my $search = $args->{search};
+	my $params = $args->{params};
+	
+	$log->debug("Searching for artists: $search");
 
 	_get_tag_list($client,
 		sub {
 			my $items = shift;
-			$cb->( _tag_list([ grep { $_->{name} =~ /\Q$search\E/i } @$items ]) );
+			
+			$cb->( {
+				items => _tag_list([ grep { $_->{name} =~ /\Q$search\E/i } @$items ])
+			} );
 		},
 		$params,
 	);
@@ -109,6 +117,8 @@ sub _get_tag_list {
 				}
 
 				@$result = sort { uc($a->{name}) cmp uc($b->{name}) } @$result;
+
+				main::DEBUGLOG && $log->debug(Data::Dump::dump($result));
 				
 				$cache->set( 'plugin_bandcamp_taglist', $result, CACHE_TTL );
 			}
@@ -143,6 +153,7 @@ sub get_tag_albums {
 	
 	if (my $cached = $cache->get('plugin_bandcamp_tag_album_' . $args->{tag_url})) {
 		$log->debug('found cached album list');
+		logBacktrace('');
 		_tag_album_list($cb, $cached);
 		return;
 	}
