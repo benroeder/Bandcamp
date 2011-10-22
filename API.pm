@@ -141,11 +141,21 @@ sub get_item_info_by_url {
 	_get($client, 
 		sub {
 			my $items = shift;
-			get_album_info($client, $cb,$params, { 
-				album_id => $items->{album_id}, 
-				tracks   => $args->{tracks},
-				artist   => $args->{artist},
-			});
+			
+			if ($items->{album_id}) {
+				get_album_info($client, $cb, $params, { 
+					album_id => $items->{album_id}, 
+					tracks   => $args->{tracks},
+					artist   => $args->{artist},
+				});
+			}
+			else {
+				get_track_info($client, $cb, $params, { 
+					track_id => $items->{track_id}, 
+					tracks   => $args->{tracks},
+					artist   => $args->{artist},
+				})
+			}
 		}, 
 		$params, 
 		{
@@ -231,7 +241,7 @@ sub _track_list {
 	foreach my $track (@{$items->{tracks}}) {
 		push @$tracks, {
 			type  => 'audio',
-			name  => $track->{title},
+			name  => (defined $track->{number} ? $track->{number} . '. ' : '') . $track->{title},
 			url   => $track->{streaming_url},
 			image => $track->{large_art_url},
 			playall => 1,

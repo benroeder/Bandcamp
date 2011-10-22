@@ -162,7 +162,10 @@ sub _recent_search {
 		
 		unshift @$recent, $search if $add;
 	
-		$cache->set('plugin_bandcamp_recent_searches', [ splice(@$recent, 0, MAX_RECENT_ITEMS) ], RECENT_CACHE_TTL);
+		$cache->set('plugin_bandcamp_recent_searches', [ 
+			sort
+			splice(@$recent, 0, MAX_RECENT_ITEMS)
+		], RECENT_CACHE_TTL);
 	}
 	
 	return $recent;
