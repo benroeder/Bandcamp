@@ -22,7 +22,7 @@ sub search_tags {
 	my $search = $args->{search};
 	my $params = $args->{params};
 	
-	$log->debug("Searching for artists: $search");
+	$log->debug("Searching for tag: $search");
 
 	_get_tag_list($client,
 		sub {
@@ -233,7 +233,7 @@ sub _tag_album_list {
 			name  => $_->{album} . ($_->{artist} ? ' - ' . $_->{artist} : ''),
 			line1 => $_->{artist} ? $_->{album} : undef,
 			line2 => $_->{artist},
-			url   => \&Plugins::Bandcamp::API::get_album_info_by_url,
+			url   => \&Plugins::Bandcamp::API::get_item_info_by_url,
 			image => $_->{image},
 			passthrough => [{
 				album_url => $_->{url},
@@ -241,8 +241,8 @@ sub _tag_album_list {
 				tracks    => 1,
 			}],
 		};
-	}	
-	
+	}
+
 	$cb->($result);
 }
 
