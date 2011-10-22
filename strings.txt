@@ -2,7 +2,7 @@ PLUGIN_BANDCAMP
 	EN	Band's Campout
 
 PLUGIN_BANDCAMP_META
-	EN	Browse and play artists and tracks from bandcamp.com
+	EN	Browse and play artists, albums and tracks from bandcamp.com
 
 PLUGIN_BANDCAMP_TAGS
 	EN	Tags

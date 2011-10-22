@@ -12,7 +12,7 @@ use Slim::Utils::Strings qw(string cstring);
 
 use constant API_URL_ALBUM => 'http://api.bandcamp.com/api/album/2/';
 use constant API_URL_BAND  => 'http://api.bandcamp.com/api/band/3/';
-use constant API_URL_TRACK => 'http://api.bandcamp.com/api/track/1/';
+use constant API_URL_TRACK => 'http://api.bandcamp.com/api/track/1/info';
 use constant API_URL_URL   => 'http://api.bandcamp.com/api/url/1/info';
 use constant CACHE_TTL     => 3600 * 12;
 
@@ -110,13 +110,14 @@ sub _album_list {
 			name  => $album->{title} . ($album->{artist} ? ' - ' . $album->{artist} : ''),
 			line1 => $album->{artist} ? $album->{album} : undef,
 			line2 => $album->{artist},
-			url   => \&get_album_info,
+			url   => $album->{album_id} ? \&get_album_info : \&get_track_info,
 			image => $album->{large_art_url},
 			passthrough => [{ 
 				album_id  => $album->{album_id},
 				album_url => $album->{url},
 				band_id   => $album->{band_id},
 				artist    => $album->{artist},
+				track_id  => $album->{track_id},
 				tracks    => 1,
 			}],
 		};
@@ -130,7 +131,7 @@ sub _album_list {
 	return $albums;
 }
 
-sub get_album_info_by_url {
+sub get_item_info_by_url {
 	my ($client, $cb, $params, $args) = @_;
 	
 	my $album_url  = $args->{album_url};
@@ -185,7 +186,8 @@ sub get_album_info {
 			},
 			{
 				name => $albumInfo->{url},
-				type => 'text'
+				type => 'text',
+				weblink => $albumInfo->{url},
 			} if ($albumInfo->{downloadable} && $albumInfo->{url});
 
 			push @$items, {
@@ -237,7 +239,7 @@ sub _track_list {
 		
 		$track->{artist} ||= $items->{artist};
 		$track->{album}  ||= $items->{title};
-		$track->{image}  ||= $items->{large_art_url} || $items->{small_art_url};
+		$track->{image}  ||= $track->{large_art_url} || $items->{large_art_url} || $items->{small_art_url};
 		$track->{album_url} ||= $items->{url};
 		
 		# cache metadata a little longer...
@@ -245,6 +247,32 @@ sub _track_list {
 	}
 	
 	return $tracks;
+}
+
+sub get_track_info {
+	my ($client, $cb, $params, $args) = @_;
+	
+	my $track_id = $args->{track_id};
+	
+	$log->debug("Getting track info for: $track_id");
+	
+	_get($client, 
+		sub {
+			my $items = shift;
+			$cb->({
+				items => _track_list({
+					tracks => [ $items ],
+					artist => $args->{artist},
+					url    => $args->{album_url},
+				})
+			}, @_ );
+		}, 
+		$params, 
+		{
+			_url     => API_URL_TRACK,
+			track_id => $track_id,
+		}
+	);
 }
 
 sub _get {

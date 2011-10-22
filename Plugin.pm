@@ -200,9 +200,11 @@ sub metadata_provider {
 	};
 	
 	if (my $cached = $cache->get('plugin_bandcamp_meta_' . $url)) {
+		$cached->{album_url} =~ s/\?pk=.*// if $cached->{album_url};
+		
 		$meta = {
 			title    => $cached->{title},
-			artist   => $cached->{album} . ' - ' . $cached->{artist},
+			artist   => $cached->{album} . ($cached->{album} ? ' - ' : '') . $cached->{artist},
 			# we'll abuse the album name for the album URL to satisfy the terms of use...
 			album    => $cached->{album_url},
 			duration => $cached->{duration},
