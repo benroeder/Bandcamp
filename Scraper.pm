@@ -33,7 +33,7 @@ sub search_tags {
 			
 			$cb->( {
 				items => $items
-			} );
+			}, $args->{search} );
 		}, $params, {
 		tag_url => TAG_BASE_URL . $search
 	});

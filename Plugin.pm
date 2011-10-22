@@ -19,7 +19,7 @@ my $log = Slim::Utils::Log->addLogCategory( {
 } );
 
 use constant PLUGIN_TAG => 'bandcamp';
-use constant MAX_RECENT_ITEMS => 20;
+use constant MAX_RECENT_ITEMS => 50;
 use constant RECENT_CACHE_TTL => 60*60*24*365;
 
 my $cache = Slim::Utils::Cache->new;
@@ -92,10 +92,10 @@ sub search {
 		sub {
 			my ($items, $search) = @_;
 			
-			add_recent_search($search);
+			add_recent_search($search) if $search && scalar @{$items->{items}};
 			
 			$search_results->{$client || ''}->{'artist_search'} = $items;
-			_search_done($client, $cb, $items, $search);
+			_search_done($client, $cb);
 		}, 
 		$params, 
 	);
@@ -104,17 +104,17 @@ sub search {
 		sub {
 			my ($items, $search) = @_;
 			
-			add_recent_search($search);
+			add_recent_search($search) if $search && scalar @{$items->{items}};
 			
 			$search_results->{$client || ''}->{'tag_search'} = $items;
-			_search_done($client, $cb, $items, $search);
+			_search_done($client, $cb);
 		}, 
 		$params,
 	);
 }
 
 sub _search_done {
-	my ($client, $cb, $items, $search) = @_;
+	my ($client, $cb) = @_;
 	
 	return unless $search_results->{$client || ''}->{'tag_search'} && $search_results->{$client || ''}->{'artist_search'};
 
@@ -131,8 +131,6 @@ sub _search_done {
 	} @{$search_results->{$client || ''}->{'tag_search'}->{items}};
 	
 	if (!scalar @$items) {
-		remove_recent_search($search);
-		
 		$items = [{
 			name => cstring($client, 'EMPTY'),
 			type => 'text',
@@ -160,21 +158,52 @@ sub _recent_search {
 	my ($search, $add) = @_;
 	
 	my $recent = $cache->get('plugin_bandcamp_recent_searches') || [];
-	$recent = [] if ref $recent ne 'ARRAY';
-	
-	if (defined $search) {	
-		# remove if already in list 
-		@$recent = grep { lc($_) ne lc($search) } @$recent;
+	$recent = [] if ref $recent ne 'ARRAY' || ref $recent->[0] ne 'HASH';
+
+	if (defined $search) {
+		my $existing;
+		my $oldest;
+		my $oldest_ts = time();
+		my $x = 0;
 		
-		unshift @$recent, $search if $add;
-	
-		$cache->set('plugin_bandcamp_recent_searches', [ 
-			sort
-			splice(@$recent, 0, MAX_RECENT_ITEMS)
-		], RECENT_CACHE_TTL);
+		foreach (@$recent) {
+			if ( lc($_->{name}) eq lc($search) ) {
+				$existing = $x; 
+			}
+			
+			if ( ($_->{ts} || -1) < $oldest_ts) {
+				$oldest = $x;
+				$oldest_ts = $_->{ts};
+			}
+			
+			$x++;
+		}
+
+		# update timestamp if it already exists
+		if ($add && defined $existing) {
+			$recent->[$existing]->{ts} = time();
+		}
+		# add search term if not defined yet
+		elsif ($add) {
+			push @$recent, {
+				name => $search,
+				ts   => time(),
+			};
+		}
+		# remove item
+		elsif ($existing) {
+			splice(@$recent, $existing, 1);
+		}
+
+		# remove oldest item if the list is larger than desired
+		if (scalar @$recent > MAX_RECENT_ITEMS && defined $oldest) {
+			splice(@$recent, $oldest, 1);
+		}
+		
+		$cache->set('plugin_bandcamp_recent_searches', $recent, RECENT_CACHE_TTL);
 	}
 	
-	return $recent;
+	return [ map { $_->{name} } @$recent ];
 }
 
 sub recent_searches {
