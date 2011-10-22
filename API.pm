@@ -118,6 +118,7 @@ sub _album_list {
 				band_id   => $album->{band_id},
 				artist    => $album->{artist},
 				track_id  => $album->{track_id},
+				large_art_url => $album->{large_art_url},
 				tracks    => 1,
 			}],
 		};
@@ -147,6 +148,7 @@ sub get_item_info_by_url {
 					album_id => $items->{album_id}, 
 					tracks   => $args->{tracks},
 					artist   => $args->{artist},
+					large_art_url => $args->{image},
 				});
 			}
 			else {
@@ -154,6 +156,7 @@ sub get_item_info_by_url {
 					track_id => $items->{track_id}, 
 					tracks   => $args->{tracks},
 					artist   => $args->{artist},
+					large_art_url => $args->{image},
 				})
 			}
 		}, 
@@ -353,6 +356,7 @@ sub get_track_info {
 					tracks => [ $items ],
 					artist => $args->{artist},
 					url    => $args->{album_url},
+					large_art_url => $args->{large_art_url},
 				})
 			}, @_ );
 		}, 

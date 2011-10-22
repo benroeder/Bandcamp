@@ -241,6 +241,7 @@ sub _tag_album_list {
 			passthrough => [{
 				album_url => $_->{url},
 				artist    => $_->{artist},
+				image     => $_->{image},
 				tracks    => 1,
 			}],
 		};
