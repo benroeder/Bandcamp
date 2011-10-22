@@ -219,7 +219,7 @@ sub get_album_info {
 			} if $albumInfo->{credits};
 			
 			if ($get_tracks) {
-				push @$items, @{ _track_list($albumInfo) };
+				push @$items, @{ _track_list($client, $albumInfo) };
 			}
 			
 			$cb->( $items, @_ );
@@ -233,24 +233,103 @@ sub get_album_info {
 }
 
 sub _track_list {
-	my $items = shift;
+	my ($client, $items) = @_;
 
 	my $cache = Slim::Utils::Cache->new();
 	
 	my $tracks = [];
 	foreach my $track (@{$items->{tracks}}) {
-		push @$tracks, {
-			type  => 'audio',
-			name  => (defined $track->{number} ? $track->{number} . '. ' : '') . $track->{title},
-			url   => $track->{streaming_url},
-			image => $track->{large_art_url},
-			playall => 1,
-		};
-		
 		$track->{artist} ||= $items->{artist};
 		$track->{album}  ||= $items->{title};
 		$track->{image}  ||= $track->{large_art_url} || $items->{large_art_url} || $items->{small_art_url};
 		$track->{album_url} ||= $items->{url};
+		
+		# xxx - track api is broken, returning relative URLs; get domain name from album url
+		if ($track->{url} && $track->{url} =~ m|^/| && $track->{album_url}) {
+			my ($prefix) = $track->{album_url} =~ m|(http://.*?)/|;
+	
+			$track->{url} = $prefix . $track->{url};
+		}
+		
+		my $trackinfo = [];
+
+		push @$trackinfo, {
+			name => (
+				cstring($client, $track->{downloadable} 
+					? ($track->{downloadable} == 1 ? 'PLUGIN_BANDCAMP_FREE' : 'PLUGIN_BANDCAMP_PAID')
+					: 'PLUGIN_BANDCAMP_NO_DOWNLOAD'
+				)
+			),
+			type => 'text',
+		},
+		{
+			name => $track->{url},
+			type => 'text',
+			weblink => $track->{url},
+		} if ($track->{downloadable} && $track->{url} && $track->{url} =~ /^http/);
+		
+		push @$trackinfo, {
+			type => 'link',
+			name => cstring($client, 'ARTIST') . cstring($client, 'COLON') . ' ' . $track->{artist},
+			url  => \&get_artist_albums,
+			passthrough => [{
+				band_id => $track->{band_id}
+			}]
+		} if $track->{artist};
+		
+		push @$trackinfo, {
+			type => 'link',
+			name => cstring($client, 'ALBUM') . cstring($client, 'COLON') . ' ' . $track->{album},
+			url  => \&get_album_info,
+			passthrough => [{
+				album_id => $track->{album_id}
+			}]
+		} if $track->{album} && $track->{album_id};
+
+		push @$trackinfo, {
+			name => cstring($client, 'PLUGIN_BANDCAMP_ABOUT'),
+			items => [{
+				name => _cleanup($track->{about}),
+				type => 'text',
+				wrap => 1,
+			}]
+		} if $track->{about};
+		
+		push @$trackinfo, {
+			name => cstring($client, 'PLUGIN_BANDCAMP_CREDITS'),
+			items => [{
+				name => _cleanup($track->{credits}),
+				type => 'text',
+				wrap => 1,
+			}]
+		} if $track->{credits};
+		
+		push @$trackinfo, {
+			name => cstring($client, 'PLUGIN_BANDCAMP_LYRICS'),
+			items => [{
+				name => _cleanup($track->{lyrics}),
+				type => 'text',
+				wrap => 1,
+			}]
+		} if $track->{lyrics};
+
+		push @$trackinfo, {
+			name => cstring($client, 'LENGTH') . cstring($client, 'COLON') . ' ' . sprintf('%s:%02s', int($track->{duration} / 60), $track->{duration} % 60),
+			type => 'text',
+		} if $track->{duration};
+
+		push @$tracks, {
+#			type  => 'link',
+			name  => (defined $track->{number} ? $track->{number} . '. ' : '') . $track->{title},
+			play  => $track->{streaming_url},
+			#image => $track->{large_art_url},
+			items => $trackinfo,
+			on_select   => 'play',
+			playall     => 1,
+			passthrough => [{
+				track_id => $track->{track_id}
+			}]
+		};
 		
 		# cache metadata a little longer...
 		$cache->set('plugin_bandcamp_meta_' . $track->{streaming_url}, $track, CACHE_TTL * 5);
@@ -270,7 +349,7 @@ sub get_track_info {
 		sub {
 			my $items = shift;
 			$cb->({
-				items => _track_list({
+				items => _track_list($client, {
 					tracks => [ $items ],
 					artist => $args->{artist},
 					url    => $args->{album_url},
