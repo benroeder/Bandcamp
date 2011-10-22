@@ -12,6 +12,7 @@ use Slim::Utils::Log;
 use Plugins::Bandcamp::API;
 
 use constant TAGS_BASE_URL => 'http://bandcamp.com/tags/';
+use constant TAG_BASE_URL  => 'http://bandcamp.com/tag/';
 use constant CACHE_TTL     => 3600 * 12;
 
 my $log = logger('plugin.bandcamp');
@@ -22,18 +23,20 @@ sub search_tags {
 	my $search = $args->{search};
 	my $params = $args->{params};
 	
+	$search =~ s/ /-/g;
+	
 	$log->debug("Searching for tag: $search");
 
-	_get_tag_list($client,
+	get_tag_items($client, 
 		sub {
 			my $items = shift;
 			
 			$cb->( {
-				items => _tag_list([ grep { $_->{name} =~ /\Q$search\E/i } @$items ])
-			}, $search );
-		},
-		$params,
-	);
+				items => $items
+			} );
+		}, $params, {
+		tag_url => TAG_BASE_URL . $search
+	});
 }
 
 sub get_tags {
@@ -68,7 +71,7 @@ sub _tag_list {
 	foreach my $item ( @$items ) {
 		push @$results, {
 			name => $item->{name},
-			url  => \&get_tag_albums,
+			url  => \&get_tag_items,
 			type => 'link',
 			passthrough => [ { tag_url => $item->{url} } ]
 		}
@@ -147,7 +150,7 @@ sub _get_tag_list {
 }
 
 
-sub get_tag_albums {
+sub get_tag_items {
 	my ($client, $cb, $params, $args) = @_;
 
 	my $cache = Slim::Utils::Cache->new;

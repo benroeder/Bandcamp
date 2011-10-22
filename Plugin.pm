@@ -118,11 +118,17 @@ sub _search_done {
 	
 	return unless $search_results->{$client || ''}->{'tag_search'} && $search_results->{$client || ''}->{'artist_search'};
 
-	my $items = [ 
-		sort { uc($a->{name}) cmp uc($b->{name}) } 
-			@{$search_results->{$client || ''}->{'tag_search'}->{items}}, 
-			@{$search_results->{$client || ''}->{'artist_search'}->{items}} 
+	my $items = [
+		map {
+			$_->{name} .= ' (' . cstring($client, 'ARTIST') . ')';
+			$_->{image} ||= 'html/images/artists.png';
+			$_;
+		} @{ $search_results->{$client || ''}->{'artist_search'}->{items} }
 	];
+	
+	push @$items, sort { 
+		uc($a->{name}) cmp uc($b->{name}) 
+	} @{$search_results->{$client || ''}->{'tag_search'}->{items}};
 	
 	if (!scalar @$items) {
 		remove_recent_search($search);
