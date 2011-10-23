@@ -1,8 +1,13 @@
 package Plugins::Bandcamp::Scraper;
 
 use strict;
+use File::Spec::Functions qw(catdir);
+use FindBin qw($Bin);
+use lib catdir($Bin, 'Plugins', 'Bandcamp', 'lib');
+
 use Encode;
 use HTML::TreeBuilder;
+
 use Scalar::Util qw(blessed);
 
 use Slim::Networking::SimpleAsyncHTTP;
