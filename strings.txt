@@ -31,3 +31,6 @@ PLUGIN_BANDCAMP_CREDITS
 	
 PLUGIN_BANDCAMP_OTHER_TRACKS
 	EN	Other tracks of this album
+	
+PLUGIN_FROM_BANDCAMP
+	EN	From bandcamp.com

@@ -21,11 +21,14 @@ my $log = Slim::Utils::Log->addLogCategory( {
 use constant PLUGIN_TAG => 'bandcamp';
 use constant MAX_RECENT_ITEMS => 50;
 use constant RECENT_CACHE_TTL => 60*60*24*365;
+use constant STREAM_URL_REGEX => qr/bandcamp\.com\/download\/track/i;
 
 my $cache = Slim::Utils::Cache->new;
 
 sub initPlugin {
 	my $class = shift;
+
+	Plugins::Bandcamp::API::init( $class->_pluginDataFor('dk') );	
 	
 	$class->SUPER::initPlugin(
 		feed   => \&handleFeed,
@@ -36,17 +39,21 @@ sub initPlugin {
 	);
 	
 	Slim::Formats::RemoteMetadata->registerProvider(
-		match => qr/bandcamp\.com\/download\/track/i,
+		match => STREAM_URL_REGEX,
 		func  => \&metadata_provider,
 	);
-
-	Plugins::Bandcamp::API::init( $class->_pluginDataFor('dk') );	
+	
+	# Track Info item
+	Slim::Menu::TrackInfo->registerInfoProvider( bandcamp => (
+		after => 'moreinfo',
+		func  => \&trackInfoMenu,
+	) );
 }
 
 sub getDisplayName { 'PLUGIN_BANDCAMP' }
 
-# this ensures the menu is in the radio menu on some player types
-sub playerMenu { 'MY_APPS' }
+# don't add this plugin to the Extras menu
+sub playerMenu {}
 
 
 sub handleFeed {
@@ -254,6 +261,30 @@ sub metadata_provider {
 	}
 	
 	return $meta;
+}
+
+sub trackInfoMenu {
+	my ( $client, undef, $track ) = @_;
+	
+	return unless $client && $track;
+	
+	my $url = $track->url;
+	
+	return unless $url && $url =~ STREAM_URL_REGEX;
+
+	if (my $cached = $cache->get('plugin_bandcamp_meta_' . $url)) {
+		$cached->{large_art_url} = $cached->{image};
+		$cached->{notracks}      = 1;
+		
+		return {
+			type => 'link',
+			name => cstring($client, 'PLUGIN_FROM_BANDCAMP'),
+			url  => \&Plugins::Bandcamp::API::get_track_info,
+			passthrough => [ $cached ],
+		};
+	}
+	
+	return;
 }
 
 1;

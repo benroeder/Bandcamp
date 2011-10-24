@@ -180,7 +180,7 @@ sub get_album_info {
 		sub {
 			my $albumInfo = shift;
 
-warn Data::Dump::dump($albumInfo) if ref $albumInfo ne 'HASH';
+			$log->error( Data::Dump::dump($albumInfo) ) if ref $albumInfo ne 'HASH';
 
 			$albumInfo->{artist} ||= $args->{artist};
 			
@@ -365,13 +365,21 @@ sub get_track_info {
 	_get($client, 
 		sub {
 			my $items = shift;
+			
+			$items = _track_list($client, {
+				tracks => [ $items ],
+				artist => $args->{artist},
+				url    => $args->{album_url},
+				large_art_url => $args->{large_art_url},
+			});
+
+			# sometimes we only want the track-information, but not the track itself			
+			if ($args->{notracks} && $items && ref $items eq 'ARRAY' && $items->[0] && ref $items->[0] eq 'HASH' && $items->[0]->{items}) {
+				$items = $items->[0]->{items};
+			}
+			
 			$cb->({
-				items => _track_list($client, {
-					tracks => [ $items ],
-					artist => $args->{artist},
-					url    => $args->{album_url},
-					large_art_url => $args->{large_art_url},
-				})
+				items => $items,
 			}, @_ );
 		}, 
 		$params, 
