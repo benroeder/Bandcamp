@@ -244,10 +244,10 @@ sub _tag_album_list {
 			url   => \&Plugins::Bandcamp::API::get_item_info_by_url,
 			image => $_->{image},
 			passthrough => [{
-				album_url => $_->{url},
-				artist    => $_->{artist},
-				image     => $_->{image},
-				tracks    => 1,
+				url    => $_->{url},
+				artist => $_->{artist},
+				image  => $_->{image},
+				tracks => 1,
 			}],
 		};
 	}

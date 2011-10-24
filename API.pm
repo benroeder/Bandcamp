@@ -135,9 +135,9 @@ sub _album_list {
 sub get_item_info_by_url {
 	my ($client, $cb, $params, $args) = @_;
 	
-	my $album_url  = $args->{album_url};
+	my $url  = $args->{url};
 	
-	$log->debug("Getting album information for album url: $album_url");
+	$log->debug("Getting information for url: $url");
 	
 	_get($client, 
 		sub {
@@ -163,7 +163,7 @@ sub get_item_info_by_url {
 		$params, 
 		{
 			_url   => API_URL_URL,
-			url    => $album_url,
+			url    => $url,
 		}
 	);
 }
@@ -179,6 +179,9 @@ sub get_album_info {
 	_get($client, 
 		sub {
 			my $albumInfo = shift;
+
+warn Data::Dump::dump($albumInfo) if ref $albumInfo ne 'HASH';
+
 			$albumInfo->{artist} ||= $args->{artist};
 			
 			return [ {
@@ -247,6 +250,13 @@ sub _track_list {
 		$track->{image}  ||= $track->{large_art_url} || $items->{large_art_url} || $items->{small_art_url};
 		$track->{album_url} ||= $items->{url};
 		
+		# complete with cached values if needed
+		if ( my $cached = $cache->set('plugin_bandcamp_meta_' . $track->{streaming_url}) ) {
+			foreach (keys %$cached) {
+				$track->{$_} ||= $cached->{$_}; 
+			}
+		}
+		
 		# xxx - track api is broken, returning relative URLs; get domain name from album url
 		if ($track->{url} && $track->{url} =~ m|^/| && $track->{album_url}) {
 			my ($prefix) = $track->{album_url} =~ m|(http://.*?)/|;
@@ -264,12 +274,13 @@ sub _track_list {
 				)
 			),
 			type => 'text',
-		},
-		{
+		} if ($track->{downloadable} && $track->{url} && $track->{url} =~ /^http/);
+
+		push @$trackinfo, {
 			name => $track->{url},
 			type => 'text',
 			weblink => $track->{url},
-		} if ($track->{downloadable} && $track->{url} && $track->{url} =~ /^http/);
+		} if ($track->{url} && $track->{url} =~ /^http/);
 		
 		push @$trackinfo, {
 			type => 'link',
@@ -282,12 +293,15 @@ sub _track_list {
 		
 		push @$trackinfo, {
 			type => 'link',
-			name => cstring($client, 'ALBUM') . cstring($client, 'COLON') . ' ' . $track->{album},
+			name => $track->{album} 
+						? cstring($client, 'ALBUM') . cstring($client, 'COLON') . ' ' . $track->{album} 
+						: cstring($client, 'PLUGIN_BANDCAMP_OTHER_TRACKS'),
 			url  => \&get_album_info,
 			passthrough => [{
-				album_id => $track->{album_id}
+				album_id => $track->{album_id},
+				tracks   => 1,
 			}]
-		} if $track->{album} && $track->{album_id};
+		} if $track->{album_id};
 
 		push @$trackinfo, {
 			name => cstring($client, 'PLUGIN_BANDCAMP_ABOUT'),
@@ -335,7 +349,7 @@ sub _track_list {
 		};
 		
 		# cache metadata a little longer...
-		$cache->set('plugin_bandcamp_meta_' . $track->{streaming_url}, $track, CACHE_TTL * 5);
+		$cache->set('plugin_bandcamp_meta_' . $track->{streaming_url}, $track, CACHE_TTL * 5) if $track->{streaming_url};
 	}
 	
 	return $tracks;
