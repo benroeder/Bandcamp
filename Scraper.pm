@@ -177,35 +177,44 @@ sub get_tag_items {
 				my $tree = HTML::TreeBuilder->new;
 				$tree->parse_content( Encode::decode( 'utf8', $response->content) );
 				
-				my $results   = $tree->look_down("_tag", "div", "class", "results");
-				my $item_list = $results->look_down("_tag", "ul", "class", "item_list");
-
 				$result = [];
-				
-				foreach ($item_list->content_list) {
 
-					my $img = $_->find('img')->attr('src');
-					my $url = $_->find('a')->attr('href'); 
-					 
-					my $album = $_->find_by_attribute('class', 'itemtext')->content;
-					$album = ref $album eq 'ARRAY' ? $album->[0] : undef;
-					
-					my $artist = $_->find_by_attribute('class', 'itemsubtext')->content;
-					$artist = ref $artist eq 'ARRAY' ? $artist->[0] : undef;
-					
-					next unless ($album || $artist) && $url;
-					
-					push @$result, {
-						album  => $album,
-						artist => $artist,
-						image  => $img,
-						url    => $url,
-					}
-				} 
-
-				@$result = sort { uc($a->{name}) cmp uc($b->{name}) } @$result;
+				my $results   = $tree->look_down("_tag", "div", "class", "results");
 				
-				$cache->set( 'plugin_bandcamp_tag_album_' . $args->{tag_url}, $result, CACHE_TTL );
+				if ($results) {
+					my $item_list = $results->look_down("_tag", "ul", "class", "item_list");
+	
+					foreach ($item_list->content_list) {
+	
+						my $img = $_->find('img')->attr('src');
+						my $url = $_->find('a')->attr('href'); 
+						 
+						my $album = $_->find_by_attribute('class', 'itemtext')->content;
+						$album = ref $album eq 'ARRAY' ? $album->[0] : undef;
+						
+						my $artist = $_->find_by_attribute('class', 'itemsubtext')->content;
+						$artist = ref $artist eq 'ARRAY' ? $artist->[0] : undef;
+						
+						next unless ($album || $artist) && $url;
+						
+						push @$result, {
+							album  => $album,
+							artist => $artist,
+							image  => $img,
+							url    => $url,
+						}
+					} 
+	
+					@$result = sort { uc($a->{name}) cmp uc($b->{name}) } @$result;
+					
+					$cache->set( 'plugin_bandcamp_tag_album_' . $args->{tag_url}, $result, CACHE_TTL );
+				}
+				else {
+					$result = [{
+						name => cstring($client, 'EMPTY'),
+						type => 'text',
+					}]
+				}
 			}
 			else {
 				$log->error("Invalid data");
