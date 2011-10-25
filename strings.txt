@@ -2,35 +2,47 @@ PLUGIN_BANDCAMP
 	EN	Band's Campout
 
 PLUGIN_BANDCAMP_META
+	DE	Entdecke Künstler, und spiele deren Alben und Tracks von bandcamp.com
 	EN	Browse and play artists, albums and tracks from bandcamp.com
 
 PLUGIN_BANDCAMP_TAGS
 	EN	Tags
+
+PLUGIN_BANDCAMP_SEARCHFOR_TAGS
+	DE	Nach Tags suchen
+	EN	Search For Tags
 
 PLUGIN_BANDCAMP_LOCATIONS
 	DE	Orte
 	EN	Locations
 
 PLUGIN_BANDCAMP_NO_DOWNLOAD
+	DE	Kein Download
 	EN	Not downloadable
 	
 PLUGIN_BANDCAMP_FREE
+	DE	Album gratis herunterladen!
 	EN	Download album for free!
 
 PLUGIN_BANDCAMP_PAID
+	DE	Album kann von folgender Adresse heruntergeladen werden:
 	EN	Download album from the following address:
 
 PLUGIN_BANDCAMP_ABOUT
+	DE	Über dieses Album
 	EN	About this album
 
 PLUGIN_BANDCAMP_LYRICS
+	DE	Liedtexte
 	EN	Lyrics
 
 PLUGIN_BANDCAMP_CREDITS
 	EN	Credits
 	
 PLUGIN_BANDCAMP_OTHER_TRACKS
+	DE	Weitere Tracks auf diesem Album
 	EN	Other tracks of this album
 	
 PLUGIN_FROM_BANDCAMP
+	DE	Auf bandcamp.com
 	EN	From bandcamp.com
