@@ -5,6 +5,9 @@ use base qw(Slim::Plugin::OPMLBased);
 use JSON::XS::VersionOneAndTwo;
 use Storable;
 
+use Slim::Formats::RemoteMetadata;
+use Slim::Menu::GlobalSearch;
+use Slim::Menu::TrackInfo;
 use Slim::Utils::Log;
 use Slim::Utils::Prefs;
 use Slim::Utils::Strings qw(string cstring);
@@ -48,6 +51,31 @@ sub initPlugin {
 		after => 'moreinfo',
 		func  => \&trackInfoMenu,
 	) );
+	
+	Slim::Menu::GlobalSearch->registerInfoProvider( bandcamp => (
+		before => 'middle',
+		func   => sub {
+			my ( $client, $tags ) = @_;
+			
+			my $searchParam = $tags->{search};
+			my $passthrough = [{ q => $searchParam }];
+
+			return [{
+				name  => cstring($client, 'PLUGIN_BANDCAMP'),
+				items => [{
+					name        => cstring($client, 'SEARCHFOR_ARTISTS'),
+					url         => \&search_artists,
+					passthrough => $passthrough,
+					searchParam => $searchParam,
+				},{
+					name        => cstring($client, 'PLUGIN_BANDCAMP_SEARCHFOR_TAGS'),
+					url         => \&search_tags,
+					passthrough => $passthrough,
+					searchParam => $searchParam,
+				}]
+			}]
+		},
+	) );		
 }
 
 sub getDisplayName { 'PLUGIN_BANDCAMP' }
@@ -94,18 +122,37 @@ sub search {
 	$params->{search} ||= $args->{q};
 
 	$search_results->{$client || ''} = {};
-	
-	Plugins::Bandcamp::API::search_artists($client,
-		sub {
-			my ($items, $search) = @_;
-			
-			add_recent_search($search) if $search && scalar @{$items->{items}};
-			
-			$search_results->{$client || ''}->{'artist_search'} = $items;
-			_search_done($client, $cb);
-		}, 
-		$params, 
-	);
+
+	_search_artists($client, $cb, $params);
+	_search_tags($client, $cb, $params);
+}
+
+sub search_artists {
+	my ($client, $cb, $params, $args) = @_;
+
+	$params->{search} ||= $args->{q};
+
+	$search_results->{$client || ''} = {
+		tag_search => { items => [] },
+	};
+
+	_search_artists($client, $cb, $params);	
+}
+
+sub search_tags {
+	my ($client, $cb, $params, $args) = @_;
+
+	$params->{search} ||= $args->{q};
+
+	$search_results->{$client || ''} = {
+		artist_search => { items => [] },
+	};
+
+	_search_tags($client, $cb, $params);
+}
+
+sub _search_tags {
+	my ($client, $cb, $params) = @_;
 	
 	Plugins::Bandcamp::Scraper::search_tags($client,
 		sub {
@@ -120,15 +167,35 @@ sub search {
 	);
 }
 
+sub _search_artists {
+	my ($client, $cb, $params) = @_;
+	
+	Plugins::Bandcamp::API::search_artists($client,
+		sub {
+			my ($items, $search) = @_;
+			
+			add_recent_search($search) if $search && scalar @{$items->{items}};
+			
+			$search_results->{$client || ''}->{'artist_search'} = $items;
+			_search_done($client, $cb);
+		}, 
+		$params, 
+	);
+}
+
 sub _search_done {
 	my ($client, $cb) = @_;
 	
 	return unless $search_results->{$client || ''}->{'tag_search'} && $search_results->{$client || ''}->{'artist_search'};
 
+	my $hasTags = scalar @{ $search_results->{$client || ''}->{'tag_search'}->{items} };
+
 	my $items = [
 		map {
-			$_->{name} .= ' (' . cstring($client, 'ARTIST') . ')';
-			$_->{image} ||= 'html/images/artists.png';
+			if ($hasTags) {
+				$_->{name} .= ' (' . cstring($client, 'ARTIST') . ')';
+				$_->{image} ||= 'html/images/artists.png';
+			}
 			$_;
 		} @{ $search_results->{$client || ''}->{'artist_search'}->{items} }
 	];
