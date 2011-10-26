@@ -121,7 +121,7 @@ sub get_tag_items {
 	if (my $cached = $cache->get('tag_album_' . $args->{tag_url})) {
 		$log->debug('found cached album list');
 		$cb->({
-			results => $cached
+			discography => $cached
 		});
 		return;
 	}
@@ -149,18 +149,18 @@ sub get_tag_items {
 						my $img = $_->find('img')->attr('src');
 						my $url = $_->find('a')->attr('href'); 
 						 
-						my $album = $_->find_by_attribute('class', 'itemtext')->content;
-						$album = ref $album eq 'ARRAY' ? $album->[0] : undef;
+						my $title = $_->find_by_attribute('class', 'itemtext')->content;
+						$title = ref $title eq 'ARRAY' ? $title->[0] : undef;
 						
 						my $artist = $_->find_by_attribute('class', 'itemsubtext')->content;
 						$artist = ref $artist eq 'ARRAY' ? $artist->[0] : undef;
 						
-						next unless ($album || $artist) && $url;
+						next unless ($title || $artist) && $url;
 						
 						push @$result, {
-							album  => $album,
+							title  => $title,
 							artist => $artist,
-							image  => $img,
+							large_art_url => $img,
 							url    => $url,
 						}
 					} 
@@ -177,7 +177,7 @@ sub get_tag_items {
 				}
 				
 				$result = {
-					results => $result
+					discography => $result
 				}
 			}
 			else {

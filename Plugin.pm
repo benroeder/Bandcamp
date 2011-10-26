@@ -141,6 +141,31 @@ sub get_locations {
 	);
 }
 
+sub get_artist_albums {
+	my ($client, $cb, $params, $args) = @_;
+	
+	Plugins::Bandcamp::API::get_artist_albums($client, 
+		sub {
+			my $items = shift;
+
+			$cb->( album_list(
+				sub {
+					my ($client, $cb, $params, $args) = @_;
+					if ($args->{album_id}) {
+						Plugins::Bandcamp::API::get_album_info($client, $cb, $params, $args);
+					}
+					else {
+						Plugins::Bandcamp::API::get_track_info($client, $cb, $params, $args);
+					}
+				},
+				$items
+			), @_ );
+		}, 
+		$params, 
+		$args
+	);
+}
+
 
 # helper methods for metadata and trackinfo
 sub metadata_provider {
@@ -213,7 +238,7 @@ sub artist_list {
 			name  => $_->{name},
 			line1 => $_->{offsite_url} ? $_->{name} : undef,
 			line2 => $_->{offsite_url} || undef,
-			url   => \&Plugins::Bandcamp::API::get_artist_albums,
+			url   => \&get_artist_albums,
 			passthrough => [{
 				band_id => $_->{band_id},
 			}],
@@ -232,7 +257,7 @@ sub tag_list {
 	foreach my $item ( @$items ) {
 		push @$results, {
 			name => $item->{name},
-			url  => \&get_tag_items,
+			url  => \&Plugins::Bandcamp::Scraper::get_tag_items,
 			type => 'link',
 			passthrough => [ { tag_url => $item->{url} } ]
 		}
@@ -241,8 +266,8 @@ sub tag_list {
 	return $results;
 }
 
-sub tag_album_list {
-	my $items = shift;
+sub album_list {
+	my ($cb, $items) = @_;
 	
 	return [ {
 		name => $items->{error},
@@ -250,25 +275,33 @@ sub tag_album_list {
 	} ] if $items->{error};
 	
 	my $albums = [];
-	foreach (@{$items->{results}}) {
+	foreach (@{$items->{discography}}) {
 		push @$albums, {
-			name  => $_->{album} . ($_->{artist} ? ' - ' . $_->{artist} : ''),
+			name  => $_->{title} . ($_->{artist} ? ' - ' . $_->{artist} : ''),
 			line1 => $_->{artist} ? $_->{album} : undef,
 			line2 => $_->{artist},
-			url   => \&Plugins::Bandcamp::API::get_item_info_by_url,
-			image => $_->{image},
-			passthrough => [{
-				url    => $_->{url},
-				artist => $_->{artist},
-				image  => $_->{image},
-				tracks => 1,
+			url   => $cb,
+			image => $_->{large_art_url},
+			passthrough => [{ 
+				album_id  => $_->{album_id},
+				album_url => $_->{url},
+				url       => $_->{url},
+				band_id   => $_->{band_id},
+				artist    => $_->{artist},
+				track_id  => $_->{track_id},
+				large_art_url => $_->{large_art_url},
+				tracks    => 1,
 			}],
 			type  => 'playlist',
 		};
 	}
 
+	return [ {
+		name => string('EMPTY'),
+		type => 'text',
+	} ] if !scalar @$albums;
+	
 	return $albums;
 }
-
 
 1;

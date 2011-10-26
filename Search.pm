@@ -65,9 +65,9 @@ sub _search_tags {
 			my ($items) = @_;
 
 			my $search = $params->{search};
-			add_recent_search($search) if $search && scalar @{ $items->{results} };
+			add_recent_search($search) if $search && scalar @{ $items->{discography} };
 			
-			$search_results->{$client || ''}->{'tag_search'} = Plugins::Bandcamp::Plugin::tag_album_list($items);
+			$search_results->{$client || ''}->{'tag_search'} = Plugins::Bandcamp::Plugin::album_list(\&Plugins::Bandcamp::API::get_item_info_by_url, $items);
 			_search_done($client, $cb);
 		}, 
 		$params,

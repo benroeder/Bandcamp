@@ -50,13 +50,8 @@ sub get_artist_albums {
 	
 	$log->debug("Getting albums for artist: $band_id");
 	
-	_get( 
-		sub {
-			my $items = shift;
-			$cb->( {
-				items => _album_list($items)
-			}, @_ );
-		}, 
+	_get(
+		$cb, 
 		$params, 
 		{
 			_url    => API_URL_BAND . 'discography',
@@ -65,47 +60,10 @@ sub get_artist_albums {
 	);
 }
 
-sub _album_list {
-	my $items = shift;
-	
-	return [ {
-		name => $items->{error},
-		type => 'text',
-	} ] if $items->{error};
-	
-	my $albums = [];
-	foreach my $album (@{$items->{discography}}) {
-		push @$albums, {
-			type  => 'playlist',
-			name  => $album->{title} . ($album->{artist} ? ' - ' . $album->{artist} : ''),
-			line1 => $album->{artist} ? $album->{album} : undef,
-			line2 => $album->{artist},
-			url   => $album->{album_id} ? \&get_album_info : \&get_track_info,
-			image => $album->{large_art_url},
-			passthrough => [{ 
-				album_id  => $album->{album_id},
-				album_url => $album->{url},
-				band_id   => $album->{band_id},
-				artist    => $album->{artist},
-				track_id  => $album->{track_id},
-				large_art_url => $album->{large_art_url},
-				tracks    => 1,
-			}],
-		};
-	}
-
-	return [ {
-		name => string('EMPTY'),
-		type => 'text',
-	} ] if !scalar @$albums;
-	
-	return $albums;
-}
-
 sub get_item_info_by_url {
 	my ($client, $cb, $params, $args) = @_;
 	
-	my $url  = $args->{url};
+	my $url = $args->{url};
 	
 	$log->debug("Getting information for url: $url");
 	
@@ -118,7 +76,7 @@ sub get_item_info_by_url {
 					album_id => $items->{album_id}, 
 					tracks   => $args->{tracks},
 					artist   => $args->{artist},
-					large_art_url => $args->{image},
+					large_art_url => $args->{large_art_url},
 				});
 			}
 			else {
@@ -126,8 +84,8 @@ sub get_item_info_by_url {
 					track_id => $items->{track_id}, 
 					tracks   => $args->{tracks},
 					artist   => $args->{artist},
-					large_art_url => $args->{image},
-				})
+					large_art_url => $args->{large_art_url},
+				});
 			}
 		}, 
 		$params, 
