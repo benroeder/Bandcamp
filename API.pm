@@ -33,13 +33,8 @@ sub search_artists {
 	
 	$log->debug("Searching for artists: $search");
 	
-	_get($client, 
-		sub {
-			my $items = shift;
-			$cb->( {
-				items => _artist_list($items)
-			}, $search );
-		}, 
+	_get( 
+		$cb,
 		$params, 
 		{
 			_url => API_URL_BAND . 'search',
@@ -48,30 +43,6 @@ sub search_artists {
 	);
 }
 
-sub _artist_list {
-	my $items = shift;
-	
-	return [ {
-		name => $items->{error},
-		type => 'text',
-	} ] if $items->{error};
-	
-	my $artists = [];
-	foreach my $artist (@{$items->{results}}) {
-		push @$artists, {
-			name  => $artist->{name},
-			line1 => $artist->{offsite_url} ? $artist->{name} : undef,
-			line2 => $artist->{offsite_url} || undef,
-			url   => \&get_artist_albums,
-			passthrough => [{
-				band_id => $artist->{band_id},
-			}],
-			type  => 'link',
-		}
-	}
-	
-	return $artists;
-}
 
 sub get_artist_albums {
 	my ($client, $cb, $params, $args) = @_;
@@ -80,7 +51,7 @@ sub get_artist_albums {
 	
 	$log->debug("Getting albums for artist: $band_id");
 	
-	_get($client, 
+	_get( 
 		sub {
 			my $items = shift;
 			$cb->( {
@@ -139,7 +110,7 @@ sub get_item_info_by_url {
 	
 	$log->debug("Getting information for url: $url");
 	
-	_get($client, 
+	_get( 
 		sub {
 			my $items = shift;
 			
@@ -176,7 +147,7 @@ sub get_album_info {
 	
 	$log->debug("Getting tracks for album: $album_id");
 	
-	_get($client, 
+	_get( 
 		sub {
 			my $albumInfo = shift;
 
@@ -355,6 +326,32 @@ sub _track_list {
 	return $tracks;
 }
 
+# helper method to pre-cache all information related to a track 
+# unfortunately the track/info call would only return IDs for album
+# and artist, thus we have to do a bunch of calls for every track...
+sub fetch_all_track_info {
+	my ($track_id) = @_;
+	
+	$log->debug("Getting complete track info for: $track_id");
+	
+	_get( 
+		sub {
+			my $items = shift;
+
+			# for each track call the artist information and album information...
+			foreach ( @{ $items } ) {
+				
+			}
+
+		}, 
+#		$params, 
+		{
+			_url     => API_URL_TRACK,
+			track_id => $track_id,
+		}
+	);
+}
+
 sub get_track_info {
 	my ($client, $cb, $params, $args) = @_;
 	
@@ -362,7 +359,7 @@ sub get_track_info {
 	
 	$log->debug("Getting track info for: $track_id");
 	
-	_get($client, 
+	_get( 
 		sub {
 			my $items = shift;
 			
@@ -391,7 +388,7 @@ sub get_track_info {
 }
 
 sub _get {
-	my ( $client, $cb, $params, $args ) = @_;
+	my ( $cb, $params, $args ) = @_;
 	
 	my $url = (delete $args->{_url}) . '?key=' . $dk;
 		
@@ -412,7 +409,6 @@ sub _get {
 		sub {
 			my $response = shift;
 			my $params   = $response->params('params');
-			my $client   = $params->{client};
 			
 			my $result;
 			
@@ -450,7 +446,6 @@ sub _get {
 		},
 		{
 			params  => $params,
-			client  => $client,
 			timeout => 30,
 		},
 	)->get($url);

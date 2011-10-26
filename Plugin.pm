@@ -14,6 +14,7 @@ use Slim::Utils::Strings qw(string cstring);
 
 use Plugins::Bandcamp::API;
 use Plugins::Bandcamp::Scraper;
+use Plugins::Bandcamp::Search;
 
 my $log = Slim::Utils::Log->addLogCategory( {
 	category     => 'plugin.bandcamp',
@@ -22,8 +23,6 @@ my $log = Slim::Utils::Log->addLogCategory( {
 } );
 
 use constant PLUGIN_TAG => 'bandcamp';
-use constant MAX_RECENT_ITEMS => 50;
-use constant RECENT_CACHE_TTL => 60*60*24*365;
 use constant STREAM_URL_REGEX => qr/bandcamp\.com\/download\/track/i;
 
 my $cache = Slim::Utils::Cache->new;
@@ -64,12 +63,12 @@ sub initPlugin {
 				name  => cstring($client, 'PLUGIN_BANDCAMP'),
 				items => [{
 					name        => cstring($client, 'SEARCHFOR_ARTISTS'),
-					url         => \&search_artists,
+					url         => \&Plugins::Bandcamp::Search::search_artists,
 					passthrough => $passthrough,
 					searchParam => $searchParam,
 				},{
 					name        => cstring($client, 'PLUGIN_BANDCAMP_SEARCHFOR_TAGS'),
-					url         => \&search_tags,
+					url         => \&Plugins::Bandcamp::Search::search_tags,
 					passthrough => $passthrough,
 					searchParam => $searchParam,
 				}]
@@ -94,7 +93,7 @@ sub handleFeed {
 			{
 				name  => cstring($client, 'SEARCH'),
 				type => 'search',
-				url  => \&search
+				url  => \&Plugins::Bandcamp::Search::search
 			},
 			{
 				name => cstring($client, 'PLUGIN_BANDCAMP_TAGS'),
@@ -109,200 +108,13 @@ sub handleFeed {
 			{
 				name => cstring($client, 'RECENT_SEARCHES'),
 				type => 'link',
-				url  => \&recent_searches,
+				url  => \&Plugins::Bandcamp::Search::recent_searches,
 			}
 		],
 	});
 }
 
-my $search_results = {};
-sub search {
-	my ($client, $cb, $params, $args) = @_;
-
-	$params->{search} ||= $args->{q};
-
-	$search_results->{$client || ''} = {};
-
-	_search_artists($client, $cb, $params);
-	_search_tags($client, $cb, $params);
-}
-
-sub search_artists {
-	my ($client, $cb, $params, $args) = @_;
-
-	$params->{search} ||= $args->{q};
-
-	$search_results->{$client || ''} = {
-		tag_search => { items => [] },
-	};
-
-	_search_artists($client, $cb, $params);	
-}
-
-sub search_tags {
-	my ($client, $cb, $params, $args) = @_;
-
-	$params->{search} ||= $args->{q};
-
-	$search_results->{$client || ''} = {
-		artist_search => { items => [] },
-	};
-
-	_search_tags($client, $cb, $params);
-}
-
-sub _search_tags {
-	my ($client, $cb, $params) = @_;
-	
-	Plugins::Bandcamp::Scraper::search_tags($client,
-		sub {
-			my ($items, $search) = @_;
-			
-			add_recent_search($search) if $search && scalar @{$items->{items}};
-			
-			$search_results->{$client || ''}->{'tag_search'} = $items;
-			_search_done($client, $cb);
-		}, 
-		$params,
-	);
-}
-
-sub _search_artists {
-	my ($client, $cb, $params) = @_;
-	
-	Plugins::Bandcamp::API::search_artists($client,
-		sub {
-			my ($items, $search) = @_;
-			
-			add_recent_search($search) if $search && scalar @{$items->{items}};
-			
-			$search_results->{$client || ''}->{'artist_search'} = $items;
-			_search_done($client, $cb);
-		}, 
-		$params, 
-	);
-}
-
-sub _search_done {
-	my ($client, $cb) = @_;
-	
-	return unless $search_results->{$client || ''}->{'tag_search'} && $search_results->{$client || ''}->{'artist_search'};
-
-	my $hasTags = scalar @{ $search_results->{$client || ''}->{'tag_search'}->{items} };
-
-	my $items = [
-		map {
-			if ($hasTags) {
-				$_->{name}  .= ' (' . cstring($client, 'ARTIST') . ')';
-				$_->{line1} .= ' (' . cstring($client, 'ARTIST') . ')' if $_->{line1};
-				$_->{image} ||= 'html/images/artists.png';
-			}
-			$_;
-		} @{ $search_results->{$client || ''}->{'artist_search'}->{items} }
-	];
-	
-	push @$items, sort { 
-		uc($a->{name}) cmp uc($b->{name}) 
-	} @{$search_results->{$client || ''}->{'tag_search'}->{items}};
-	
-	if (!scalar @$items) {
-		$items = [{
-			name => cstring($client, 'EMPTY'),
-			type => 'text',
-		}];
-	}
-	
-	$cb->( { 
-		items => $items
-	} );
-}
-
-sub add_recent_search {
-	_recent_search(shift, 1);
-}
-
-sub remove_recent_search {
-	_recent_search(shift);
-}
-
-sub get_recent_searches {
-	return _recent_search();
-}
-
-sub _recent_search {
-	my ($search, $add) = @_;
-	
-	my $recent = $cache->get('plugin_bandcamp_recent_searches') || [];
-	$recent = [] if ref $recent ne 'ARRAY' || ref $recent->[0] ne 'HASH';
-
-	if (defined $search) {
-		my $existing;
-		my $oldest;
-		my $oldest_ts = time();
-		my $x = 0;
-		
-		foreach (@$recent) {
-			if ( lc($_->{name}) eq lc($search) ) {
-				$existing = $x; 
-			}
-			
-			if ( ($_->{ts} || -1) < $oldest_ts) {
-				$oldest = $x;
-				$oldest_ts = $_->{ts};
-			}
-			
-			$x++;
-		}
-
-		# update timestamp if it already exists
-		if ($add && defined $existing) {
-			$recent->[$existing]->{ts} = time();
-		}
-		# add search term if not defined yet
-		elsif ($add) {
-			push @$recent, {
-				name => $search,
-				ts   => time(),
-			};
-		}
-		# remove item
-		elsif ($existing) {
-			splice(@$recent, $existing, 1);
-		}
-
-		# remove oldest item if the list is larger than desired
-		if (scalar @$recent > MAX_RECENT_ITEMS && defined $oldest) {
-			splice(@$recent, $oldest, 1);
-		}
-		
-		$cache->set('plugin_bandcamp_recent_searches', $recent, RECENT_CACHE_TTL);
-	}
-	
-	return [ map { $_->{name} } @$recent ];
-}
-
-sub recent_searches {
-	my ($client, $cb, $args) = @_;
-
-	my $recent = _recent_search();
-	
-	my $items = [];
-	
-	foreach (@$recent) {
-		push @$items, {
-			type => 'link',
-			name => $_,
-			url  => \&search,
-			passthrough => [{
-				q => $_
-			}],
-		}
-	}
-	
-	$cb->({
-		items => $items
-	});
-}
+# helper methods for metadata and trackinfo
 
 sub metadata_provider {
 	my ( $client, $url ) = @_;
@@ -325,8 +137,11 @@ sub metadata_provider {
 #			bitrate  => '128k CBR',
 #			type     => 'MP3 (bandcamp.com)',
 #			icon     => __PACKAGE__->getIcon(),
-		} 
+		};
+#	warn Data::Dump::dump($cached);
 	}
+	
+#	warn Data::Dump::dump($meta);
 	
 	return $meta;
 }
@@ -353,6 +168,74 @@ sub trackInfoMenu {
 	}
 	
 	return;
+}
+
+
+# methods creating the lists to be shown from our data
+sub artist_list {
+	my $items = shift;
+	
+	return [ {
+		name => $items->{error},
+		type => 'text',
+	} ] if $items->{error};
+	
+	my $artists = [];
+	foreach (@{$items->{results}}) {
+		push @$artists, {
+			name  => $_->{name},
+			line1 => $_->{offsite_url} ? $_->{name} : undef,
+			line2 => $_->{offsite_url} || undef,
+			url   => \&Plugins::Bandcamp::API::get_artist_albums,
+			passthrough => [{
+				band_id => $_->{band_id},
+			}],
+			type  => 'link',
+		}
+	}
+	
+	return $artists;
+}
+
+sub tag_album_list {
+	my $items = shift;
+	
+	return [ {
+		name => $items->{error},
+		type => 'text',
+	} ] if $items->{error};
+	
+	my $albums = [];
+	foreach (@{$items->{results}}) {
+		push @$albums, {
+			name  => $_->{album} . ($_->{artist} ? ' - ' . $_->{artist} : ''),
+			line1 => $_->{artist} ? $_->{album} : undef,
+			line2 => $_->{artist},
+			url   => \&Plugins::Bandcamp::API::get_item_info_by_url,
+			image => $_->{image},
+			passthrough => [{
+				url    => $_->{url},
+				artist => $_->{artist},
+				image  => $_->{image},
+				tracks => 1,
+			}],
+			type  => 'playlist',
+		};
+	}
+
+	return $albums;
+}
+
+
+# caching helpers
+sub set_cache {
+	my ($k, $v, $t) = @_;
+	$cache->set('plugin_bandcamp_recent_' . $k, $v, $t || 86400);
+}
+
+sub get_cache {
+	my ($k) = @_;
+	return $cache->get('plugin_bandcamp_recent_' . $k);
 }
 
 1;

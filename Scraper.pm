@@ -32,16 +32,13 @@ sub search_tags {
 	
 	$log->debug("Searching for tag: $search");
 
-	get_tag_items($client, 
-		sub {
-			my $items = shift;
-			
-			$cb->( {
-				items => $items
-			}, $args->{search} );
-		}, $params, {
-		tag_url => TAG_BASE_URL . $search
-	});
+	get_tag_items($client,
+		$cb, 
+		$params, 
+		{
+			tag_url => TAG_BASE_URL . $search
+		}
+	);
 }
 
 sub get_tags {
@@ -162,7 +159,9 @@ sub get_tag_items {
 	
 	if (my $cached = $cache->get('plugin_bandcamp_tag_album_' . $args->{tag_url})) {
 		$log->debug('found cached album list');
-		_tag_album_list($cb, $cached);
+		$cb->({
+			results => $cached
+		});
 		return;
 	}
 	
@@ -215,18 +214,22 @@ sub get_tag_items {
 						type => 'text',
 					}]
 				}
+				
+				$result = {
+					results => $result
+				}
 			}
 			else {
 				$log->error("Invalid data");
-				$result = [{ 
+				$result = { 
 					error => 'Error: Invalid data',
-				}];
+				};
 			}
-			_tag_album_list($cb, $result);
+			$cb->($result);
 		},
 		sub {
 			$log->warn("error: $_[1]");
-			_tag_album_list($cb, [ { 
+			$cb->([ { 
 				name => 'Unknown error: ' . $_[1],
 				type => 'text' 
 			} ]);
@@ -237,31 +240,6 @@ sub get_tag_items {
 			timeout => 30,
 		},
 	)->get($args->{tag_url});
-}
-
-sub _tag_album_list {
-	my ( $cb, $items ) = @_;
-	
-	my $result = [];
-
-	foreach (@$items) {
-		push @$result, {
-			type  => 'playlist',
-			name  => $_->{album} . ($_->{artist} ? ' - ' . $_->{artist} : ''),
-			line1 => $_->{artist} ? $_->{album} : undef,
-			line2 => $_->{artist},
-			url   => \&Plugins::Bandcamp::API::get_item_info_by_url,
-			image => $_->{image},
-			passthrough => [{
-				url    => $_->{url},
-				artist => $_->{artist},
-				image  => $_->{image},
-				tracks => 1,
-			}],
-		};
-	}
-
-	$cb->($result);
 }
 
 1;
