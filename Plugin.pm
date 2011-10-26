@@ -193,7 +193,8 @@ sub _search_done {
 	my $items = [
 		map {
 			if ($hasTags) {
-				$_->{name} .= ' (' . cstring($client, 'ARTIST') . ')';
+				$_->{name}  .= ' (' . cstring($client, 'ARTIST') . ')';
+				$_->{line1} .= ' (' . cstring($client, 'ARTIST') . ')' if $_->{line1};
 				$_->{image} ||= 'html/images/artists.png';
 			}
 			$_;

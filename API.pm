@@ -10,7 +10,7 @@ use Slim::Utils::Log;
 use Slim::Utils::Cache;
 use Slim::Utils::Strings qw(string cstring);
 
-use constant API_URL_ALBUM => 'http://api.bandcamp.com/api/album/2/';
+use constant API_URL_ALBUM => 'http://api.bandcamp.com/api/album/2/info';
 use constant API_URL_BAND  => 'http://api.bandcamp.com/api/band/3/';
 use constant API_URL_TRACK => 'http://api.bandcamp.com/api/track/1/info';
 use constant API_URL_URL   => 'http://api.bandcamp.com/api/url/1/info';
@@ -232,7 +232,7 @@ sub get_album_info {
 		}, 
 		$params, 
 		{
-			_url     => API_URL_ALBUM . 'info',
+			_url     => API_URL_ALBUM,
 			album_id => $album_id,
 		}
 	);
