@@ -16,6 +16,12 @@ my $log = logger('plugin.bandcamp');
 
 my $search_results = {};
 
+my $cache;
+
+sub init {
+	$cache = shift;
+}
+
 sub search {
 	my ($client, $cb, $params, $args) = @_;
 
@@ -134,7 +140,7 @@ sub get_recent_searches {
 sub _recent_search {
 	my ($search, $add) = @_;
 	
-	my $recent = Plugins::Bandcamp::Plugin::get_cache('searches') || [];
+	my $recent = $cache->get('recent_searches') || [];
 	$recent = [] if ref $recent ne 'ARRAY' || ref $recent->[0] ne 'HASH';
 
 	if (defined $search) {
@@ -177,7 +183,7 @@ sub _recent_search {
 			splice(@$recent, $oldest, 1);
 		}
 		
-		Plugins::Bandcamp::Plugin::set_cache('searches', $recent, RECENT_CACHE_TTL);
+		$cache->set('recent_searches', $recent, RECENT_CACHE_TTL);
 	}
 	
 	return [ map { $_->{name} } @$recent ];

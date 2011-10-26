@@ -7,7 +7,6 @@ use URI::Escape;
 
 use Slim::Networking::SimpleAsyncHTTP;
 use Slim::Utils::Log;
-use Slim::Utils::Cache;
 use Slim::Utils::Strings qw(string cstring);
 
 use constant API_URL_ALBUM => 'http://api.bandcamp.com/api/album/2/info';
@@ -18,10 +17,10 @@ use constant CACHE_TTL     => 3600 * 12;
 
 my $log = logger('plugin.bandcamp');
 
-my $dk;
+my ($dk, $cache);
 
 sub init {
-	$dk = shift;
+	($cache, $dk) = @_;
 	$dk =~ s/-//g;
 }
 
@@ -212,8 +211,6 @@ sub get_album_info {
 sub _track_list {
 	my ($client, $items) = @_;
 
-	my $cache = Slim::Utils::Cache->new();
-	
 	my $tracks = [];
 	foreach my $track (@{$items->{tracks}}) {
 		$track->{artist} ||= $items->{artist};
@@ -222,7 +219,7 @@ sub _track_list {
 		$track->{album_url} ||= $items->{url};
 		
 		# complete with cached values if needed
-		if ( my $cached = $cache->set('plugin_bandcamp_meta_' . $track->{streaming_url}) ) {
+		if ( my $cached = $cache->set('meta_' . $track->{streaming_url}) ) {
 			foreach (keys %$cached) {
 				$track->{$_} ||= $cached->{$_}; 
 			}
@@ -320,7 +317,7 @@ sub _track_list {
 		};
 		
 		# cache metadata a little longer...
-		$cache->set('plugin_bandcamp_meta_' . $track->{streaming_url}, $track, CACHE_TTL * 5) if $track->{streaming_url};
+		$cache->set('meta_' . $track->{streaming_url}, $track, CACHE_TTL * 5) if $track->{streaming_url};
 	}
 	
 	return $tracks;
@@ -398,8 +395,7 @@ sub _get {
 
 	$log->debug($url);
 	
-	my $cache = Slim::Utils::Cache->new;
-	if (my $cached = $cache->get('plugin_bandcamp_api_' . $url)) {
+	if (my $cached = $cache->get('api_' . $url)) {
 		main::DEBUGLOG && $log->debug('found cached api response' . Data::Dump::dump($cached));
 		$cb->($cached);
 		return;
@@ -426,7 +422,7 @@ sub _get {
 					$log->error($result->{error});
 				}
 				else {
-					$cache->set('plugin_bandcamp_api_' . $url, $result, CACHE_TTL);
+					$cache->set('api_' . $url, $result, CACHE_TTL);
 				}
 			}
 			else {

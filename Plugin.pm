@@ -25,12 +25,14 @@ my $log = Slim::Utils::Log->addLogCategory( {
 use constant PLUGIN_TAG => 'bandcamp';
 use constant STREAM_URL_REGEX => qr/bandcamp\.com\/download\/track/i;
 
-my $cache = Slim::Utils::Cache->new;
+my $cache = Slim::Utils::Cache->new('plugin_bandcamp', 1);
 
 sub initPlugin {
 	my $class = shift;
 
-	Plugins::Bandcamp::API::init( $class->_pluginDataFor('dk') );	
+	Plugins::Bandcamp::API::init( $cache, $class->_pluginDataFor('dk') );	
+	Plugins::Bandcamp::Scraper::init( $cache );	
+	Plugins::Bandcamp::Search::init( $cache );	
 	
 	$class->SUPER::initPlugin(
 		feed   => \&handleFeed,
@@ -98,12 +100,12 @@ sub handleFeed {
 			{
 				name => cstring($client, 'PLUGIN_BANDCAMP_TAGS'),
 				type => 'link',
-				url  => \&Plugins::Bandcamp::Scraper::get_tags,
+				url  => \&get_tags,
 			},
 			{
 				name => cstring($client, 'PLUGIN_BANDCAMP_LOCATIONS'),
 				type => 'link',
-				url  => \&Plugins::Bandcamp::Scraper::get_locations,
+				url  => \&get_locations,
 			},
 			{
 				name => cstring($client, 'RECENT_SEARCHES'),
@@ -114,8 +116,33 @@ sub handleFeed {
 	});
 }
 
-# helper methods for metadata and trackinfo
 
+sub get_tags {
+	my ($client, $cb, $params) = @_;
+
+	Plugins::Bandcamp::Scraper::get_tag_list($client,
+		sub {
+			my $items = shift;
+			$cb->( tag_list([ grep { $_->{cloud} eq 'tags_cloud' } @$items ]) );
+		},
+		$params,
+	);
+}
+
+sub get_locations {
+	my ($client, $cb, $params) = @_;
+
+	Plugins::Bandcamp::Scraper::get_tag_list($client,
+		sub {
+			my $items = shift;
+			$cb->( tag_list([ grep { $_->{cloud} eq 'locations_cloud' } @$items ]) );
+		},
+		$params,
+	);
+}
+
+
+# helper methods for metadata and trackinfo
 sub metadata_provider {
 	my ( $client, $url ) = @_;
 
@@ -124,7 +151,7 @@ sub metadata_provider {
 		cover  => __PACKAGE__->_pluginDataFor('icon'),
 	};
 	
-	if (my $cached = $cache->get('plugin_bandcamp_meta_' . $url)) {
+	if (my $cached = $cache->get('meta_' . $url)) {
 		$cached->{album_url} =~ s/\?pk=.*// if $cached->{album_url};
 		
 		$meta = {
@@ -155,7 +182,7 @@ sub trackInfoMenu {
 	
 	return unless $url && $url =~ STREAM_URL_REGEX;
 
-	if (my $cached = $cache->get('plugin_bandcamp_meta_' . $url)) {
+	if (my $cached = $cache->get('meta_' . $url)) {
 		$cached->{large_art_url} = $cached->{image};
 		$cached->{notracks}      = 1;
 		
@@ -197,6 +224,23 @@ sub artist_list {
 	return $artists;
 }
 
+sub tag_list {
+	my $items = shift;;
+	
+	my $results = [];
+	
+	foreach my $item ( @$items ) {
+		push @$results, {
+			name => $item->{name},
+			url  => \&get_tag_items,
+			type => 'link',
+			passthrough => [ { tag_url => $item->{url} } ]
+		}
+	}
+	
+	return $results;
+}
+
 sub tag_album_list {
 	my $items = shift;
 	
@@ -226,16 +270,5 @@ sub tag_album_list {
 	return $albums;
 }
 
-
-# caching helpers
-sub set_cache {
-	my ($k, $v, $t) = @_;
-	$cache->set('plugin_bandcamp_recent_' . $k, $v, $t || 86400);
-}
-
-sub get_cache {
-	my ($k) = @_;
-	return $cache->get('plugin_bandcamp_recent_' . $k);
-}
 
 1;

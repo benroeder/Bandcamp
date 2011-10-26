@@ -22,6 +22,12 @@ use constant CACHE_TTL     => 3600 * 12;
 
 my $log = logger('plugin.bandcamp');
 
+my $cache;
+
+sub init {
+	$cache = shift;
+}
+
 sub search_tags {
 	my ($client, $cb, $args) = @_;
 
@@ -41,53 +47,10 @@ sub search_tags {
 	);
 }
 
-sub get_tags {
-	my ($client, $cb, $params) = @_;
-
-	_get_tag_list($client,
-		sub {
-			my $items = shift;
-			$cb->( _tag_list([ grep { $_->{cloud} eq 'tags_cloud' } @$items ]) );
-		},
-		$params,
-	);
-}
-
-sub get_locations {
-	my ($client, $cb, $params) = @_;
-
-	_get_tag_list($client,
-		sub {
-			my $items = shift;
-			$cb->( _tag_list([ grep { $_->{cloud} eq 'locations_cloud' } @$items ]) );
-		},
-		$params,
-	);
-}
-
-sub _tag_list {
-	my $items = shift;;
-	
-	my $results = [];
-	
-	foreach my $item ( @$items ) {
-		push @$results, {
-			name => $item->{name},
-			url  => \&get_tag_items,
-			type => 'link',
-			passthrough => [ { tag_url => $item->{url} } ]
-		}
-	}
-	
-	return $results;
-}
-
-sub _get_tag_list {
+sub get_tag_list {
 	my ( $client, $cb, $params ) = @_;
 	
-	my $cache = Slim::Utils::Cache->new;
-	
-	if (my $cached = $cache->get('plugin_bandcamp_taglist')) {
+	if (my $cached = $cache->get('taglist')) {
 		$log->debug('found cached tag list');
 		$cb->($cached);
 		return;
@@ -126,7 +89,7 @@ sub _get_tag_list {
 
 #				main::DEBUGLOG && $log->debug(Data::Dump::dump($result));
 				
-				$cache->set( 'plugin_bandcamp_taglist', $result, CACHE_TTL );
+				$cache->set( 'taglist', $result, CACHE_TTL );
 			}
 			else {
 				$log->error("Invalid data");
@@ -155,9 +118,7 @@ sub _get_tag_list {
 sub get_tag_items {
 	my ($client, $cb, $params, $args) = @_;
 
-	my $cache = Slim::Utils::Cache->new;
-	
-	if (my $cached = $cache->get('plugin_bandcamp_tag_album_' . $args->{tag_url})) {
+	if (my $cached = $cache->get('tag_album_' . $args->{tag_url})) {
 		$log->debug('found cached album list');
 		$cb->({
 			results => $cached
@@ -206,7 +167,7 @@ sub get_tag_items {
 	
 					@$result = sort { uc($a->{name}) cmp uc($b->{name}) } @$result;
 					
-					$cache->set( 'plugin_bandcamp_tag_album_' . $args->{tag_url}, $result, CACHE_TTL );
+					$cache->set( 'tag_album_' . $args->{tag_url}, $result, CACHE_TTL );
 				}
 				else {
 					$result = [{
