@@ -35,7 +35,7 @@ sub search_tags {
 	
 	$search =~ s/ /-/g;
 	
-	$log->debug("Searching for tag: $search");
+	main::DEBUGLOG && $log->debug("Searching for tag: $search");
 
 	get_tag_items($client,
 		$cb, 
@@ -49,81 +49,54 @@ sub search_tags {
 sub get_top_sellers {
 	my ( $client, $cb, $params ) = @_;
 
-	if (my $cached = $cache->get('top_sellers')) {
-		$log->debug('found cached top sellers list: ' . Data::Dump::dump($cached));
-		$cb->({
-			discography => $cached
-		});
-		return;
-	}
-
-	
 	_get($client,
 		sub {
-			my $response = shift;
-			my $params   = $response->params('params');
+			$cb->({
+				discography => shift
+			});
+		},
+		sub {
+			my $tree   = shift;
+			my $result = [];
+
+			my $results = $tree->look_down("_tag", "div", "class", "top-sellers");
 			
-			my $result;
+			if ($results) {
+				my $item_list = $results->look_down("_tag", "ul", "class", "list");
 
-			if ( $response->headers->content_type =~ /html/ ) {
-				my $tree = HTML::TreeBuilder->new;
-				$tree->parse_content( Encode::decode( 'utf8', $response->content) );
-				
-				$result = [];
+				foreach ($item_list->content_list) {
 
-				my $results   = $tree->look_down("_tag", "div", "class", "top-sellers");
-				
-				if ($results) {
-					my $item_list = $results->look_down("_tag", "ul", "class", "list");
-	
-					foreach ($item_list->content_list) {
-	
-						my $img = $_->find('img')->attr('src');
-						my $url = $_->find('a')->attr('href'); 
-						$url =~ s/\?from=topsellers$//;
-						 
-						my $title = $_->find_by_attribute('class', 'album-name');
-						$title = $title->find('a')->content if $title;
-						$title = ref $title eq 'ARRAY' ? $title->[0] : undef;
-						
-						my $artist = $_->find_by_attribute('class', 'album-artist');
-						$artist = $artist->find('a')->content if $artist;
-						$artist = ref $artist eq 'ARRAY' ? $artist->[0] : undef;
-						
-						next unless ($title || $artist) && $url;
-						
-						push @$result, {
-							title  => $title,
-							artist => $artist,
-							large_art_url => $img,
-							url    => $url,
-						}
-					} 
-	
-					@$result = sort { uc($a->{name}) cmp uc($b->{name}) } @$result;
+					my $img = $_->find('img')->attr('src');
+					my $url = $_->find('a')->attr('href'); 
+					$url =~ s/\?from=topsellers$//;
+					 
+					my $title = $_->find_by_attribute('class', 'album-name');
+					$title = $title->find('a')->content if $title;
+					$title = ref $title eq 'ARRAY' ? $title->[0] : undef;
 					
-					$cache->set( 'top_sellers', $result, CACHE_TTL );
-				}
-				else {
-					$result = [{
-						name => cstring($client, 'EMPTY'),
-						type => 'text',
-					}]
-				}
+					my $artist = $_->find_by_attribute('class', 'album-artist');
+					$artist = $artist->find('a')->content if $artist;
+					$artist = ref $artist eq 'ARRAY' ? $artist->[0] : undef;
+					
+					next unless ($title || $artist) && $url;
+					
+					push @$result, {
+						title  => $title,
+						artist => $artist,
+						large_art_url => $img,
+						url    => $url,
+					}
+				} 
+
+				@$result = sort { uc($a->{name}) cmp uc($b->{name}) } @$result;
 				
-				$result = {
-					discography => $result
-				}
+				$cache->set( 'top_sellers', $result, CACHE_TTL );
 			}
-			else {
-				$log->error("Invalid data");
-				$result = { 
-					error => 'Error: Invalid data',
-				};
-			}
-			$cb->($result);
+			
+			return $result;
 		},
 		$params,
+		'top_sellers',
 		BASE_URL
 	);
 }
@@ -131,85 +104,60 @@ sub get_top_sellers {
 sub get_featured_album {
 	my ( $client, $cb, $params ) = @_;
 
-	if (my $cached = $cache->get('featured_album')) {
-		$log->debug('found cached featured album: ' . Data::Dump::dump($cached));
-		$cb->($cached);
-		return;
-	}
-
-	
 	_get($client,
+		$cb,
 		sub {
-			my $response = shift;
-			my $params   = $response->params('params');
+			my $tree   = shift;
+			my $result = [];
+
+			my $featured = $tree->look_down("_tag", "div", "class", "featured-album");
 			
-			my $result;
-
-			if ( $response->headers->content_type =~ /html/ ) {
-				my $tree = HTML::TreeBuilder->new;
-				$tree->parse_content( Encode::decode( 'utf8', $response->content) );
+			if ($featured) {
+				my $item = {};
 				
-				$result = [];
+				my $img = $featured->find('img')->attr('src');
+				my $url = $featured->find('a')->attr('href'); 
+				$url =~ s/\?from=featuredalbum$//;
+					 
+				my $header = $featured->find_by_attribute('class', 'featured-album-header')->as_text;
+				$header =~ s/Album of the Week, //i if $header;
 
-				my $featured = $tree->look_down("_tag", "div", "class", "featured-album");
+				my $title = $featured->find_by_attribute('class', 'featured-album-title');
+				$title = $title->find('a')->content if $title;
+				$title = ref $title eq 'ARRAY' ? $title->[0] : undef;
 				
-				if ($featured) {
-					my $item = {};
-					
-					my $img = $featured->find('img')->attr('src');
-					my $url = $featured->find('a')->attr('href'); 
-					$url =~ s/\?from=featuredalbum$//;
-						 
-					my $header = $featured->find_by_attribute('class', 'featured-album-header')->as_text;
-					$header =~ s/Album of the Week, //i if $header;
-
-					my $title = $featured->find_by_attribute('class', 'featured-album-title');
-					$title = $title->find('a')->content if $title;
-					$title = ref $title eq 'ARRAY' ? $title->[0] : undef;
-					
-					my $artist;
-					if ($title) {
-						($artist, $title) = split /:/, $title;
-						$title =~ s/^\s*//;
-					}
-					
-					my @text = $featured->look_down('_tag', 'div', 'class', qr/featured[a-z\-]+text/);
-					my $review = '';
-					foreach my $block (@text) {
-						my @lines = $block->look_down('_tag', 'p');
-						
-						foreach my $line (@lines) {
-							$review .= $line->as_text . "\n\n";
-						}
-					}
-					
-					push @$result, {
-						header => $header,
-						title  => $title,
-						artist => $artist,
-						large_art_url => $img,
-						url    => $url,
-						review => $review,
-					};
-					
-					$cache->set( 'featured_album', $result, CACHE_TTL );
+				my $artist;
+				if ($title) {
+					($artist, $title) = split /:/, $title;
+					$title =~ s/^\s*//;
 				}
-				else {
-					$result = {
-						name => cstring($client, 'EMPTY'),
-						type => 'text',
+				
+				my @text = $featured->look_down('_tag', 'div', 'class', qr/featured[a-z\-]+text/);
+				my $review = '';
+				foreach my $block (@text) {
+					my @lines = $block->look_down('_tag', 'p');
+					
+					foreach my $line (@lines) {
+						$review .= $line->as_text . "\n\n";
 					}
 				}
-			}
-			else {
-				$log->error("Invalid data");
-				$result = { 
-					error => 'Error: Invalid data',
+				
+				push @$result, {
+					header => $header,
+					title  => $title,
+					artist => $artist,
+					large_art_url => $img,
+					url    => $url,
+					review => $review,
 				};
+				
+				$cache->set( 'featured_album', $result, CACHE_TTL );
 			}
-			$cb->($result);
+
+			return $result
 		},
 		$params,
+		'featured_album',
 		BASE_URL
 	);
 }
@@ -217,56 +165,36 @@ sub get_featured_album {
 sub get_tag_list {
 	my ( $client, $cb, $params ) = @_;
 	
-	if (my $cached = $cache->get('taglist')) {
-		$log->debug('found cached tag list');
-		$cb->($cached);
-		return;
-	}
-	
 	_get($client,
+		$cb,
 		sub {
-			my $response = shift;
-			my $params   = $response->params('params');
-			
-			my $result;
+			my $tree   = shift;
+			my $result = [];
 
-			if ( $response->headers->content_type =~ /html/ ) {
-				my $tree = HTML::TreeBuilder->new;
-				$tree->parse_content( Encode::decode( 'utf8', $response->content) );
-				
-				my @categories = $tree->look_down("_tag", "div", "class", qr/tagcloud/);
+			my @categories = $tree->look_down("_tag", "div", "class", qr/tagcloud/);
 
-				$result = [];
+			foreach my $tag_cloud (@categories) {
+				my $type = $tag_cloud->attr('id') || next;
 				
-				foreach my $tag_cloud (@categories) {
-					my $type = $tag_cloud->attr('id') || next;
+				foreach ($tag_cloud->content_list) {
+					next unless blessed($_) && $_->attr('class') =~ /\btag\b/ && ref $_->content eq 'ARRAY';
 					
-					foreach ($tag_cloud->content_list) {
-						next unless blessed($_) && $_->attr('class') =~ /\btag\b/ && ref $_->content eq 'ARRAY';
-						
-						push @$result, {
-							name  => $_->content->[0],
-							url   => $_->attr('href'),
-							cloud => $type,
-						}
-					} 
-				}
-
-				@$result = sort { uc($a->{name}) cmp uc($b->{name}) } @$result;
-
-#				main::DEBUGLOG && $log->debug(Data::Dump::dump($result));
-				
-				$cache->set( 'taglist', $result, CACHE_TTL );
+					push @$result, {
+						name  => $_->content->[0],
+						url   => $_->attr('href'),
+						cloud => $type,
+					}
+				} 
 			}
-			else {
-				$log->error("Invalid data");
-				$result = [{ 
-					error => 'Error: Invalid data',
-				}];
-			}
-			$cb->($result);
+
+			@$result = sort { uc($a->{name}) cmp uc($b->{name}) } @$result;
+
+			$cache->set( 'taglist', $result, CACHE_TTL ) if @$result;
+
+			return $result;
 		},
 		$params,
+		'taglist',
 		TAGS_BASE_URL,
 	);
 }
@@ -274,16 +202,66 @@ sub get_tag_list {
 
 sub get_tag_items {
 	my ($client, $cb, $params, $args) = @_;
-
-	if (my $cached = $cache->get('tag_album_' . $args->{tag_url})) {
-		$log->debug('found cached album list: ' . Data::Dump::dump($cached));
-		$cb->({
-			discography => $cached
-		});
-		return;
-	}
 	
 	_get($client,
+		sub {
+			$cb->({
+				discography => shift
+			});
+		},
+		sub {
+			my $tree   = shift;
+			my $result = [];
+
+			my $results   = $tree->look_down("_tag", "div", "class", "results");
+			
+			if ($results) {
+				my $item_list = $results->look_down("_tag", "ul", "class", "item_list");
+
+				foreach ($item_list->content_list) {
+
+					my $img = $_->find('img')->attr('src');
+					my $url = $_->find('a')->attr('href'); 
+					 
+					my $title = $_->find_by_attribute('class', 'itemtext')->content;
+					$title = ref $title eq 'ARRAY' ? $title->[0] : undef;
+					
+					my $artist = $_->find_by_attribute('class', 'itemsubtext')->content;
+					$artist = ref $artist eq 'ARRAY' ? $artist->[0] : undef;
+					
+					next unless ($title || $artist) && $url;
+					
+					push @$result, {
+						title  => $title,
+						artist => $artist,
+						large_art_url => $img,
+						url    => $url,
+					}
+				} 
+
+				@$result = sort { uc($a->{name}) cmp uc($b->{name}) } @$result;
+				
+				$cache->set( 'tag_album_' . $args->{tag_url}, $result, CACHE_TTL );
+			}
+			
+			return $result;
+		},
+		$params,
+		'tag_album_' . $args->{tag_url},
+		$args->{tag_url}
+	);
+}
+
+sub _get {
+	my ($client, $cb, $parseCB, $params, $tag, $url) = @_;
+
+	if (my $cached = $cache->get($tag)) {
+		main::DEBUGLOG && $log->debug("found cached value for '$tag': " . Data::Dump::dump($cached));
+		$cb->( $cached );
+		return;
+	}
+
+	my $http = Slim::Networking::SimpleAsyncHTTP->new(
 		sub {
 			my $response = shift;
 			my $params   = $response->params('params');
@@ -294,47 +272,13 @@ sub get_tag_items {
 				my $tree = HTML::TreeBuilder->new;
 				$tree->parse_content( Encode::decode( 'utf8', $response->content) );
 				
-				$result = [];
+				$result = $parseCB->($tree) if $parseCB;
 
-				my $results   = $tree->look_down("_tag", "div", "class", "results");
-				
-				if ($results) {
-					my $item_list = $results->look_down("_tag", "ul", "class", "item_list");
-	
-					foreach ($item_list->content_list) {
-	
-						my $img = $_->find('img')->attr('src');
-						my $url = $_->find('a')->attr('href'); 
-						 
-						my $title = $_->find_by_attribute('class', 'itemtext')->content;
-						$title = ref $title eq 'ARRAY' ? $title->[0] : undef;
-						
-						my $artist = $_->find_by_attribute('class', 'itemsubtext')->content;
-						$artist = ref $artist eq 'ARRAY' ? $artist->[0] : undef;
-						
-						next unless ($title || $artist) && $url;
-						
-						push @$result, {
-							title  => $title,
-							artist => $artist,
-							large_art_url => $img,
-							url    => $url,
-						}
-					} 
-	
-					@$result = sort { uc($a->{name}) cmp uc($b->{name}) } @$result;
-					
-					$cache->set( 'tag_album_' . $args->{tag_url}, $result, CACHE_TTL );
-				}
-				else {
+				if (!scalar @$result) {
 					$result = [{
 						name => cstring($client, 'EMPTY'),
 						type => 'text',
 					}]
-				}
-				
-				$result = {
-					discography => $result
 				}
 			}
 			else {
@@ -343,18 +287,11 @@ sub get_tag_items {
 					error => 'Error: Invalid data',
 				};
 			}
+
+			main::DEBUGLOG && $log->debug(Data::Dump::dump($result));
+			
 			$cb->($result);
 		},
-		$params,
-		$args->{tag_url}
-	);
-}
-
-sub _get {
-	my ($client, $cb, $params, $url) = @_;
-
-	my $http = Slim::Networking::SimpleAsyncHTTP->new(
-		$cb,
 		sub {
 			$log->warn("error: $_[1]");
 			$cb->([ { 
