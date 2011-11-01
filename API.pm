@@ -67,27 +67,8 @@ sub get_item_info_by_url {
 	
 	$log->debug("Getting information for url: $url");
 	
-	_get( 
-		sub {
-			my $items = shift;
-			
-			if ($items->{album_id}) {
-				get_album_info($client, $cb, $params, { 
-					album_id => $items->{album_id}, 
-					tracks   => $args->{tracks},
-					artist   => $args->{artist},
-					large_art_url => $args->{large_art_url},
-				});
-			}
-			else {
-				get_track_info($client, $cb, $params, { 
-					track_id => $items->{track_id}, 
-					tracks   => $args->{tracks},
-					artist   => $args->{artist},
-					large_art_url => $args->{large_art_url},
-				});
-			}
-		}, 
+	_get(
+		$cb, 
 		$params, 
 		{
 			_url   => API_URL_URL,
@@ -99,65 +80,12 @@ sub get_item_info_by_url {
 sub get_album_info {
 	my ($client, $cb, $params, $args) = @_;
 	
-	my $album_id   = $args->{album_id};
-	my $get_tracks = $args->{tracks};
+	my $album_id = $args->{album_id};
 	
 	$log->debug("Getting tracks for album: $album_id");
 	
 	_get( 
-		sub {
-			my $albumInfo = shift;
-
-			$log->error( Data::Dump::dump($albumInfo) ) if ref $albumInfo ne 'HASH';
-
-			$albumInfo->{artist} ||= $args->{artist};
-			
-			return [ {
-				name => $albumInfo->{error},
-				type => 'text',
-			} ] if $albumInfo->{error};
-
-			my $items = [];
-
-			push @$items, {
-				name => (
-					cstring($client, $albumInfo->{downloadable} 
-						? ($albumInfo->{downloadable} == 1 ? 'PLUGIN_BANDCAMP_FREE' : 'PLUGIN_BANDCAMP_PAID')
-						: 'PLUGIN_BANDCAMP_NO_DOWNLOAD'
-					)
-				),
-				type => 'text',
-			},
-			{
-				name => $albumInfo->{url},
-				type => 'text',
-				weblink => $albumInfo->{url},
-			} if ($albumInfo->{downloadable} && $albumInfo->{url});
-
-			push @$items, {
-				name => cstring($client, 'PLUGIN_BANDCAMP_ABOUT'),
-				items => [{
-					name => _cleanup($albumInfo->{about}),
-					type => 'text',
-					wrap => 1,
-				}]
-			} if $albumInfo->{about};
-			
-			push @$items, {
-				name => cstring($client, 'PLUGIN_BANDCAMP_CREDITS'),
-				items => [{
-					name => _cleanup($albumInfo->{credits}),
-					type => 'text',
-					wrap => 1,
-				}]
-			} if $albumInfo->{credits};
-			
-			if ($get_tracks) {
-				push @$items, @{ _track_list($client, $albumInfo) };
-			}
-			
-			$cb->( $items, @_ );
-		}, 
+		$cb,
 		$params, 
 		{
 			_url     => API_URL_ALBUM,
@@ -166,120 +94,6 @@ sub get_album_info {
 	);
 }
 
-sub _track_list {
-	my ($client, $items) = @_;
-
-	my $tracks = [];
-	foreach my $track (@{$items->{tracks}}) {
-		$track->{artist} ||= $items->{artist};
-		$track->{album}  ||= $items->{title};
-		$track->{image}  ||= $track->{large_art_url} || $items->{large_art_url} || $items->{small_art_url};
-		$track->{album_url} ||= $items->{url};
-		
-		# complete with cached values if needed
-		if ( my $cached = $cache->set('meta_' . $track->{streaming_url}) ) {
-			foreach (keys %$cached) {
-				$track->{$_} ||= $cached->{$_}; 
-			}
-		}
-		
-		# xxx - track api is broken, returning relative URLs; get domain name from album url
-		if ($track->{url} && $track->{url} =~ m|^/| && $track->{album_url}) {
-			my ($prefix) = $track->{album_url} =~ m|(http://.*?)/|;
-	
-			$track->{url} = $prefix . $track->{url};
-		}
-		
-		my $trackinfo = [];
-
-		push @$trackinfo, {
-			name => (
-				cstring($client, $track->{downloadable} 
-					? ($track->{downloadable} == 1 ? 'PLUGIN_BANDCAMP_FREE' : 'PLUGIN_BANDCAMP_PAID')
-					: 'PLUGIN_BANDCAMP_NO_DOWNLOAD'
-				)
-			),
-			type => 'text',
-		} if ($track->{downloadable} && $track->{url} && $track->{url} =~ /^http/);
-
-		push @$trackinfo, {
-			name => $track->{url},
-			type => 'text',
-			weblink => $track->{url},
-		} if ($track->{url} && $track->{url} =~ /^http/);
-		
-		push @$trackinfo, {
-			type => 'link',
-			name => cstring($client, 'ARTIST') . cstring($client, 'COLON') . ' ' . $track->{artist},
-			url  => \&get_artist_albums,
-			passthrough => [{
-				band_id => $track->{band_id}
-			}]
-		} if $track->{artist};
-		
-		push @$trackinfo, {
-			type => 'link',
-			name => $track->{album} 
-						? cstring($client, 'ALBUM') . cstring($client, 'COLON') . ' ' . $track->{album} 
-						: cstring($client, 'PLUGIN_BANDCAMP_OTHER_TRACKS'),
-			url  => \&get_album_info,
-			passthrough => [{
-				album_id => $track->{album_id},
-				tracks   => 1,
-			}]
-		} if $track->{album_id};
-
-		push @$trackinfo, {
-			name => cstring($client, 'PLUGIN_BANDCAMP_ABOUT'),
-			items => [{
-				name => _cleanup($track->{about}),
-				type => 'text',
-				wrap => 1,
-			}]
-		} if $track->{about};
-		
-		push @$trackinfo, {
-			name => cstring($client, 'PLUGIN_BANDCAMP_CREDITS'),
-			items => [{
-				name => _cleanup($track->{credits}),
-				type => 'text',
-				wrap => 1,
-			}]
-		} if $track->{credits};
-		
-		push @$trackinfo, {
-			name => cstring($client, 'PLUGIN_BANDCAMP_LYRICS'),
-			items => [{
-				name => _cleanup($track->{lyrics}),
-				type => 'text',
-				wrap => 1,
-			}]
-		} if $track->{lyrics};
-
-		push @$trackinfo, {
-			name => cstring($client, 'LENGTH') . cstring($client, 'COLON') . ' ' . sprintf('%s:%02s', int($track->{duration} / 60), $track->{duration} % 60),
-			type => 'text',
-		} if $track->{duration};
-
-		push @$tracks, {
-#			type  => 'link',
-			name  => (defined $track->{number} ? $track->{number} . '. ' : '') . $track->{title},
-			play  => $track->{streaming_url},
-			#image => $track->{large_art_url},
-			items => $trackinfo,
-			on_select   => 'play',
-			playall     => 1,
-			passthrough => [{
-				track_id => $track->{track_id}
-			}]
-		};
-		
-		# cache metadata a little longer...
-		$cache->set('meta_' . $track->{streaming_url}, $track, CACHE_TTL * 5) if $track->{streaming_url};
-	}
-	
-	return $tracks;
-}
 
 # helper method to pre-cache all information related to a track 
 # unfortunately the track/info call would only return IDs for album
@@ -314,26 +128,8 @@ sub get_track_info {
 	
 	$log->debug("Getting track info for: $track_id");
 	
-	_get( 
-		sub {
-			my $items = shift;
-			
-			$items = _track_list($client, {
-				tracks => [ $items ],
-				artist => $args->{artist},
-				url    => $args->{album_url},
-				large_art_url => $args->{large_art_url},
-			});
-
-			# sometimes we only want the track-information, but not the track itself			
-			if ($args->{notracks} && $items && ref $items eq 'ARRAY' && $items->[0] && ref $items->[0] eq 'HASH' && $items->[0]->{items}) {
-				$items = $items->[0]->{items};
-			}
-			
-			$cb->({
-				items => $items,
-			}, @_ );
-		}, 
+	_get(
+		$cb, 
 		$params, 
 		{
 			_url     => API_URL_TRACK,
