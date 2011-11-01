@@ -99,6 +99,11 @@ sub handleFeed {
 				url  => \&get_top_sellers,
 			},
 			{
+				name => cstring($client, 'PLUGIN_BANDCAMP_FEATURED_ALBUM'),
+				type => 'link',
+				url  => \&get_featured_album,
+			},
+			{
 				name  => cstring($client, 'SEARCH'),
 				type => 'search',
 				url  => \&Plugins::Bandcamp::Search::search
@@ -122,7 +127,6 @@ sub handleFeed {
 	});
 }
 
-
 sub get_top_sellers {
 	my ($client, $cb, $params) = @_;
 
@@ -130,6 +134,39 @@ sub get_top_sellers {
 		sub {
 			my $items = shift;
 			$cb->( album_list(\&get_item_info_by_url, $items) );
+		},
+		$params,
+	);
+}
+
+sub get_featured_album {
+	my ($client, $cb, $params) = @_;
+
+	Plugins::Bandcamp::Scraper::get_featured_album($client,
+		sub {
+			my $items = shift;
+			
+			my $item   = $items->[0];
+
+			my $result = album_list(\&get_item_info_by_url, {
+				discography => [ $item ]
+			});
+
+			push @$result, {
+				name => cstring($client, 'PLUGIN_BANDCAMP_REVIEW'),
+				items => [{
+					name => _cleanup($item->{review}),
+					type => 'text',
+					wrap => 1,
+				}]
+			} if $item->{review};
+			
+			push @$result, {
+				name => $item->{header},
+				type => 'text',
+			} if $item->{header};
+
+			$cb->( $result );
 		},
 		$params,
 	);
@@ -410,6 +447,7 @@ sub album_list {
 	
 	my $albums = [];
 	foreach (@{$items->{discography}}) {
+		$_->{title} ||= $_->{album};
 		push @$albums, {
 			name  => $_->{title} . ($_->{artist} ? ' - ' . $_->{artist} : ''),
 			line1 => $_->{artist} ? $_->{title} : undef,

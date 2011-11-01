@@ -1,6 +1,10 @@
 PLUGIN_BANDCAMP
 	EN	Band's Campout
 
+PLUGIN_BANDCAMP_FEATURED_ALBUM
+	DE	Album der Woche
+	EN	Album of the Week
+
 PLUGIN_BANDCAMP_TOPSELLERS
 	DE	Top verkaufte Alben
 	EN	Top sellers of late
@@ -35,6 +39,10 @@ PLUGIN_BANDCAMP_PAID
 PLUGIN_BANDCAMP_ABOUT
 	DE	Über dieses Album
 	EN	About this album
+	
+PLUGIN_BANDCAMP_REVIEW
+	DE	Lese Kritik
+	EN	Read Review
 
 PLUGIN_BANDCAMP_LYRICS
 	DE	Liedtexte

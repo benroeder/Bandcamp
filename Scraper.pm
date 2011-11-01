@@ -128,6 +128,92 @@ sub get_top_sellers {
 	);
 }
 
+sub get_featured_album {
+	my ( $client, $cb, $params ) = @_;
+
+	if (my $cached = $cache->get('featured_album')) {
+		$log->debug('found cached featured album: ' . Data::Dump::dump($cached));
+		$cb->($cached);
+		return;
+	}
+
+	
+	_get($client,
+		sub {
+			my $response = shift;
+			my $params   = $response->params('params');
+			
+			my $result;
+
+			if ( $response->headers->content_type =~ /html/ ) {
+				my $tree = HTML::TreeBuilder->new;
+				$tree->parse_content( Encode::decode( 'utf8', $response->content) );
+				
+				$result = [];
+
+				my $featured = $tree->look_down("_tag", "div", "class", "featured-album");
+				
+				if ($featured) {
+					my $item = {};
+					
+					my $img = $featured->find('img')->attr('src');
+					my $url = $featured->find('a')->attr('href'); 
+					$url =~ s/\?from=featuredalbum$//;
+						 
+					my $header = $featured->find_by_attribute('class', 'featured-album-header')->as_text;
+					$header =~ s/Album of the Week, //i if $header;
+
+					my $title = $featured->find_by_attribute('class', 'featured-album-title');
+					$title = $title->find('a')->content if $title;
+					$title = ref $title eq 'ARRAY' ? $title->[0] : undef;
+					
+					my $artist;
+					if ($title) {
+						($artist, $title) = split /:/, $title;
+						$title =~ s/^\s*//;
+					}
+					
+					my @text = $featured->look_down('_tag', 'div', 'class', qr/featured[a-z\-]+text/);
+					my $review = '';
+					foreach my $block (@text) {
+						my @lines = $block->look_down('_tag', 'p');
+						
+						foreach my $line (@lines) {
+							$review .= $line->as_text . "\n\n";
+						}
+					}
+					
+					push @$result, {
+						header => $header,
+						title  => $title,
+						artist => $artist,
+						large_art_url => $img,
+						url    => $url,
+						review => $review,
+					};
+					
+					$cache->set( 'featured_album', $result, CACHE_TTL );
+				}
+				else {
+					$result = {
+						name => cstring($client, 'EMPTY'),
+						type => 'text',
+					}
+				}
+			}
+			else {
+				$log->error("Invalid data");
+				$result = { 
+					error => 'Error: Invalid data',
+				};
+			}
+			$cb->($result);
+		},
+		$params,
+		BASE_URL
+	);
+}
+
 sub get_tag_list {
 	my ( $client, $cb, $params ) = @_;
 	
