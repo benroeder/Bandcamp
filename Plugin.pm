@@ -94,6 +94,11 @@ sub handleFeed {
 	$cb->({
 		items => [
 			{
+				name => cstring($client, 'PLUGIN_BANDCAMP_TOPSELLERS'),
+				type => 'link',
+				url  => \&get_top_sellers,
+			},
+			{
 				name  => cstring($client, 'SEARCH'),
 				type => 'search',
 				url  => \&Plugins::Bandcamp::Search::search
@@ -117,6 +122,18 @@ sub handleFeed {
 	});
 }
 
+
+sub get_top_sellers {
+	my ($client, $cb, $params) = @_;
+
+	Plugins::Bandcamp::Scraper::get_top_sellers($client,
+		sub {
+			my $items = shift;
+			$cb->( album_list(\&get_item_info_by_url, $items) );
+		},
+		$params,
+	);
+}
 
 sub get_tags {
 	my ($client, $cb, $params) = @_;
@@ -255,6 +272,34 @@ sub get_track {
 	)	
 }
 
+sub get_item_info_by_url {
+	my ($client, $cb, $params, $args) = @_;
+	
+	Plugins::Bandcamp::API::get_item_info_by_url($client,
+		sub {
+			my ($items) = shift;
+			
+			if ($items->{album_id}) {
+				Plugins::Bandcamp::Plugin::get_album($client, $cb, $params, { 
+					album_id => $items->{album_id}, 
+					tracks   => $args->{tracks},
+					artist   => $args->{artist},
+					large_art_url => $args->{large_art_url},
+				});
+			}
+			else {
+				Plugins::Bandcamp::Plugin::get_track($client, $cb, $params, { 
+					track_id => $items->{track_id}, 
+					tracks   => $args->{tracks},
+					artist   => $args->{artist},
+					large_art_url => $args->{large_art_url},
+				});
+			}
+		},
+		$params,
+		$args,
+	);
+}
 
 # helper methods for metadata and trackinfo
 sub metadata_provider {
@@ -367,7 +412,7 @@ sub album_list {
 	foreach (@{$items->{discography}}) {
 		push @$albums, {
 			name  => $_->{title} . ($_->{artist} ? ' - ' . $_->{artist} : ''),
-			line1 => $_->{artist} ? $_->{album} : undef,
+			line1 => $_->{artist} ? $_->{title} : undef,
 			line2 => $_->{artist},
 			url   => $cb,
 			image => $_->{large_art_url},

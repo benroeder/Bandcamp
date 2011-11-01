@@ -14,10 +14,9 @@ use Slim::Networking::SimpleAsyncHTTP;
 use Slim::Utils::Cache;
 use Slim::Utils::Log;
 
-use Plugins::Bandcamp::API;
-
-use constant TAGS_BASE_URL => 'http://bandcamp.com/tags/';
-use constant TAG_BASE_URL  => 'http://bandcamp.com/tag/';
+use constant BASE_URL      => 'http://bandcamp.com/';
+use constant TAGS_BASE_URL => BASE_URL . 'tags/';
+use constant TAG_BASE_URL  => BASE_URL . 'tag/';
 use constant CACHE_TTL     => 3600 * 12;
 
 my $log = logger('plugin.bandcamp');
@@ -47,6 +46,88 @@ sub search_tags {
 	);
 }
 
+sub get_top_sellers {
+	my ( $client, $cb, $params ) = @_;
+
+	if (my $cached = $cache->get('top_sellers')) {
+		$log->debug('found cached top sellers list: ' . Data::Dump::dump($cached));
+		$cb->({
+			discography => $cached
+		});
+		return;
+	}
+
+	
+	_get($client,
+		sub {
+			my $response = shift;
+			my $params   = $response->params('params');
+			
+			my $result;
+
+			if ( $response->headers->content_type =~ /html/ ) {
+				my $tree = HTML::TreeBuilder->new;
+				$tree->parse_content( Encode::decode( 'utf8', $response->content) );
+				
+				$result = [];
+
+				my $results   = $tree->look_down("_tag", "div", "class", "top-sellers");
+				
+				if ($results) {
+					my $item_list = $results->look_down("_tag", "ul", "class", "list");
+	
+					foreach ($item_list->content_list) {
+	
+						my $img = $_->find('img')->attr('src');
+						my $url = $_->find('a')->attr('href'); 
+						$url =~ s/\?from=topsellers$//;
+						 
+						my $title = $_->find_by_attribute('class', 'album-name');
+						$title = $title->find('a')->content if $title;
+						$title = ref $title eq 'ARRAY' ? $title->[0] : undef;
+						
+						my $artist = $_->find_by_attribute('class', 'album-artist');
+						$artist = $artist->find('a')->content if $artist;
+						$artist = ref $artist eq 'ARRAY' ? $artist->[0] : undef;
+						
+						next unless ($title || $artist) && $url;
+						
+						push @$result, {
+							title  => $title,
+							artist => $artist,
+							large_art_url => $img,
+							url    => $url,
+						}
+					} 
+	
+					@$result = sort { uc($a->{name}) cmp uc($b->{name}) } @$result;
+					
+					$cache->set( 'top_sellers', $result, CACHE_TTL );
+				}
+				else {
+					$result = [{
+						name => cstring($client, 'EMPTY'),
+						type => 'text',
+					}]
+				}
+				
+				$result = {
+					discography => $result
+				}
+			}
+			else {
+				$log->error("Invalid data");
+				$result = { 
+					error => 'Error: Invalid data',
+				};
+			}
+			$cb->($result);
+		},
+		$params,
+		BASE_URL
+	);
+}
+
 sub get_tag_list {
 	my ( $client, $cb, $params ) = @_;
 	
@@ -56,7 +137,7 @@ sub get_tag_list {
 		return;
 	}
 	
-	my $http = Slim::Networking::SimpleAsyncHTTP->new(
+	_get($client,
 		sub {
 			my $response = shift;
 			my $params   = $response->params('params');
@@ -99,19 +180,9 @@ sub get_tag_list {
 			}
 			$cb->($result);
 		},
-		sub {
-			$log->warn("error: $_[1]");
-			$cb->([ { 
-				name => 'Unknown error: ' . $_[1],
-				type => 'text' 
-			} ]);
-		},
-		{
-			params  => $params,
-			client  => $client,
-			timeout => 30,
-		},
-	)->get(TAGS_BASE_URL);
+		$params,
+		TAGS_BASE_URL,
+	);
 }
 
 
@@ -119,14 +190,14 @@ sub get_tag_items {
 	my ($client, $cb, $params, $args) = @_;
 
 	if (my $cached = $cache->get('tag_album_' . $args->{tag_url})) {
-		$log->debug('found cached album list');
+		$log->debug('found cached album list: ' . Data::Dump::dump($cached));
 		$cb->({
 			discography => $cached
 		});
 		return;
 	}
 	
-	my $http = Slim::Networking::SimpleAsyncHTTP->new(
+	_get($client,
 		sub {
 			my $response = shift;
 			my $params   = $response->params('params');
@@ -188,6 +259,16 @@ sub get_tag_items {
 			}
 			$cb->($result);
 		},
+		$params,
+		$args->{tag_url}
+	);
+}
+
+sub _get {
+	my ($client, $cb, $params, $url) = @_;
+
+	my $http = Slim::Networking::SimpleAsyncHTTP->new(
+		$cb,
 		sub {
 			$log->warn("error: $_[1]");
 			$cb->([ { 
@@ -200,7 +281,7 @@ sub get_tag_items {
 			client  => $client,
 			timeout => 30,
 		},
-	)->get($args->{tag_url});
+	)->get($url);
 }
 
 1;

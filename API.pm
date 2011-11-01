@@ -98,28 +98,28 @@ sub get_album_info {
 # helper method to pre-cache all information related to a track 
 # unfortunately the track/info call would only return IDs for album
 # and artist, thus we have to do a bunch of calls for every track...
-sub fetch_all_track_info {
-	my ($track_id) = @_;
-	
-	$log->debug("Getting complete track info for: $track_id");
-	
-	_get( 
-		sub {
-			my $items = shift;
-
-			# for each track call the artist information and album information...
-			foreach ( @{ $items } ) {
-				
-			}
-
-		}, 
-#		$params, 
-		{
-			_url     => API_URL_TRACK,
-			track_id => $track_id,
-		}
-	);
-}
+#sub fetch_all_track_info {
+#	my ($track_id) = @_;
+#	
+#	$log->debug("Getting complete track info for: $track_id");
+#	
+#	_get( 
+#		sub {
+#			my $items = shift;
+#
+#			# for each track call the artist information and album information...
+#			foreach ( @{ $items } ) {
+#				
+#			}
+#
+#		}, 
+##		$params, 
+#		{
+#			_url     => API_URL_TRACK,
+#			track_id => $track_id,
+#		}
+#	);
+#}
 
 sub get_track_info {
 	my ($client, $cb, $params, $args) = @_;

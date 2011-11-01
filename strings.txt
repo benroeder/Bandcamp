@@ -1,6 +1,10 @@
 PLUGIN_BANDCAMP
 	EN	Band's Campout
 
+PLUGIN_BANDCAMP_TOPSELLERS
+	DE	Top verkaufte Alben
+	EN	Top sellers of late
+
 PLUGIN_BANDCAMP_META
 	DE	Entdecke Künstler, und spiele deren Alben und Tracks von bandcamp.com
 	EN	Browse and play artists, albums and tracks from bandcamp.com
