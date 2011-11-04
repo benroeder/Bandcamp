@@ -398,7 +398,7 @@ sub trackInfoMenu {
 		return {
 			type => 'link',
 			name => cstring($client, 'PLUGIN_FROM_BANDCAMP'),
-			url  => \&Plugins::Bandcamp::API::get_track_info,
+			url  => \&get_track,
 			passthrough => [ $cached ],
 		};
 	}
