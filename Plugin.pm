@@ -155,7 +155,7 @@ sub get_featured_album {
 			push @$result, {
 				name => cstring($client, 'PLUGIN_BANDCAMP_REVIEW'),
 				items => [{
-					name => _cleanup($item->{review}),
+					name => _cleanup_multiline($item->{review}),
 					type => 'text',
 					wrap => 1,
 				}]
@@ -193,6 +193,19 @@ sub get_locations {
 			$cb->( tag_list([ grep { $_->{cloud} eq 'locations_cloud' } @$items ]) );
 		},
 		$params,
+	);
+}
+
+sub get_tag_items {
+	my ($client, $cb, $params, $args) = @_;
+
+	Plugins::Bandcamp::Scraper::get_tag_items($client,
+		sub {
+			my $items = shift;
+			$cb->( album_list(\&Plugins::Bandcamp::Plugin::get_item_info_by_url, $items) );
+		},
+		$params,
+		$args,
 	);
 }
 
@@ -257,7 +270,7 @@ sub get_album {
 			push @$items, {
 				name => cstring($client, 'PLUGIN_BANDCAMP_ABOUT'),
 				items => [{
-					name => _cleanup($albumInfo->{about}),
+					name => _cleanup_multiline($albumInfo->{about}),
 					type => 'text',
 					wrap => 1,
 				}]
@@ -266,7 +279,7 @@ sub get_album {
 			push @$items, {
 				name => cstring($client, 'PLUGIN_BANDCAMP_CREDITS'),
 				items => [{
-					name => _cleanup($albumInfo->{credits}),
+					name => _cleanup_multiline($albumInfo->{credits}),
 					type => 'text',
 					wrap => 1,
 				}]
@@ -421,14 +434,14 @@ sub artist_list {
 }
 
 sub tag_list {
-	my $items = shift;;
+	my $items = shift;
 	
 	my $results = [];
 	
 	foreach my $item ( @$items ) {
 		push @$results, {
 			name => $item->{name},
-			url  => \&Plugins::Bandcamp::Scraper::get_tag_items,
+			url  => \&get_tag_items,
 			type => 'link',
 			passthrough => [ { tag_url => $item->{url} } ]
 		}
@@ -542,7 +555,7 @@ sub track_list {
 		push @$trackinfo, {
 			name => cstring($client, 'PLUGIN_BANDCAMP_ABOUT'),
 			items => [{
-				name => _cleanup($track->{about}),
+				name => _cleanup_multiline($track->{about}),
 				type => 'text',
 				wrap => 1,
 			}]
@@ -551,7 +564,7 @@ sub track_list {
 		push @$trackinfo, {
 			name => cstring($client, 'PLUGIN_BANDCAMP_CREDITS'),
 			items => [{
-				name => _cleanup($track->{credits}),
+				name => _cleanup_multiline($track->{credits}),
 				type => 'text',
 				wrap => 1,
 			}]
@@ -560,7 +573,7 @@ sub track_list {
 		push @$trackinfo, {
 			name => cstring($client, 'PLUGIN_BANDCAMP_LYRICS'),
 			items => [{
-				name => _cleanup($track->{lyrics}),
+				name => _cleanup_multiline($track->{lyrics}),
 				type => 'text',
 				wrap => 1,
 			}]
@@ -592,7 +605,7 @@ sub track_list {
 }
 
 
-sub _cleanup {
+sub _cleanup_multiline {
 	my $text = shift;
 	
 	return unless defined $text;

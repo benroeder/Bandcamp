@@ -201,12 +201,4 @@ sub _get {
 	)->get($url);
 }
 
-sub _cleanup {
-	my $text = shift;
-	
-	$text =~ s/\r\n/\n/g;
-	
-	return $text;
-}
-
 1;
