@@ -3,13 +3,12 @@ package Plugins::Bandcamp::Plugin;
 use strict;
 use base qw(Slim::Plugin::OPMLBased);
 use JSON::XS::VersionOneAndTwo;
-use Storable;
+use Tie::Cache::LRU;
 
 use Slim::Formats::RemoteMetadata;
 use Slim::Menu::GlobalSearch;
 use Slim::Menu::TrackInfo;
 use Slim::Utils::Log;
-use Slim::Utils::Prefs;
 use Slim::Utils::Strings qw(string cstring);
 
 use Plugins::Bandcamp::API;
@@ -25,8 +24,13 @@ my $log = Slim::Utils::Log->addLogCategory( {
 use constant PLUGIN_TAG       => 'bandcamp';
 use constant STREAM_URL_REGEX => qr/bandcamp\.com\/download\/track/i;
 use constant CACHE_TTL        => 3600 * 12;
+use constant MAX_RECENT_ITEMS => 20;
+use constant RECENT_CACHE_TTL => 60*60*24*365;
 
 my $cache = Slim::Utils::Cache->new('plugin_bandcamp', 1);
+
+my %recent_plays;
+tie %recent_plays, 'Tie::Cache::LRU', MAX_RECENT_ITEMS;
 
 sub initPlugin {
 	my $class = shift;
@@ -77,7 +81,15 @@ sub initPlugin {
 				}]
 			}]
 		},
-	) );		
+	) );
+	
+	# initialize recent plays: need to add them to the LRU cache ordered by timestamp
+	my $recent_plays = $cache->get('recent_plays');
+	map {
+		$recent_plays{$_} = $recent_plays->{$_};
+	} sort { 
+		$recent_plays->{$a}->{ts} <=> $recent_plays->{$a}->{ts} 
+	} keys %$recent_plays;
 }
 
 sub getDisplayName { 'PLUGIN_BANDCAMP' }
@@ -102,6 +114,11 @@ sub handleFeed {
 				name => cstring($client, 'PLUGIN_BANDCAMP_FEATURED_ALBUM'),
 				type => 'link',
 				url  => \&get_featured_album,
+			},
+			{
+				name  => cstring($client, 'PLUGIN_BANDCAMP_RECENTLY_PLAYED'),
+				type => 'link',
+				url  => \&recently_played,
 			},
 			{
 				name  => cstring($client, 'SEARCH'),
@@ -170,6 +187,25 @@ sub get_featured_album {
 		},
 		$params,
 	);
+}
+
+sub recently_played {
+	my ($client, $cb, $params) = @_;
+
+	my $items = [ 
+		sort { $a->{title} cmp $b->{title} } 
+		map { $recent_plays{$_} } 
+		grep { $recent_plays{$_} }
+		keys %recent_plays 
+	];
+
+	$items = album_list(\&get_item_info_by_url, {
+		discography => $items
+	});
+	
+	$cb->({
+		items => $items
+	});
 }
 
 sub get_tags {
@@ -354,7 +390,25 @@ sub metadata_provider {
 	};
 	
 	if (my $cached = $cache->get('meta_' . $url)) {
-		$cached->{album_url} =~ s/\?pk=.*// if $cached->{album_url};
+		if ($cached->{album_url}) {
+			my $song = $client->playingSong();
+
+			# keep track of the albums we're playing
+			if ( (my $title = ($cached->{album} || $cached->{title})) && $song && $song->track->url eq $url ) {
+				$recent_plays{$title} = {
+					title    => $title,
+					url      => $cached->{album_url},
+					artist   => $cached->{artist},
+					image    => $cached->{image},
+					album_id => $cached->{album_id},
+					ts       => time(),
+				};
+				
+				$cache->set('recent_plays', \%recent_plays, RECENT_CACHE_TTL) if %recent_plays;
+			}
+			
+			$cached->{album_url} =~ s/\?pk=.*//;
+		}
 		
 		$meta = {
 			title    => $cached->{title},
@@ -453,13 +507,15 @@ sub album_list {
 	
 	my $albums = [];
 	foreach (@{$items->{discography}}) {
+		next unless ref $_ eq 'HASH';
+
 		$_->{title} ||= $_->{album};
 		push @$albums, {
 			name  => $_->{title} . ($_->{artist} ? ' - ' . $_->{artist} : ''),
 			line1 => $_->{artist} ? $_->{title} : undef,
 			line2 => $_->{artist},
 			url   => $cb,
-			image => $_->{large_art_url},
+			image => $_->{large_art_url} || $_->{image},
 			passthrough => [{ 
 				album_id  => $_->{album_id},
 				album_url => $_->{url},
@@ -467,7 +523,7 @@ sub album_list {
 				band_id   => $_->{band_id},
 				artist    => $_->{artist},
 				track_id  => $_->{track_id},
-				large_art_url => $_->{large_art_url},
+				large_art_url => $_->{large_art_url} || $_->{image},
 				tracks    => 1,
 			}],
 			type  => 'playlist',
