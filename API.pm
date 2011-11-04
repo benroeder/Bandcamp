@@ -14,6 +14,7 @@ use constant API_URL_BAND  => 'http://api.bandcamp.com/api/band/3/';
 use constant API_URL_TRACK => 'http://api.bandcamp.com/api/track/1/info';
 use constant API_URL_URL   => 'http://api.bandcamp.com/api/url/1/info';
 use constant CACHE_TTL     => 3600 * 12;
+use constant META_CACHE_TTL=> 86400 * 30;
 
 my $log = logger('plugin.bandcamp');
 
@@ -85,7 +86,16 @@ sub get_album_info {
 	$log->debug("Getting tracks for album: $album_id");
 	
 	_get( 
-		$cb,
+		sub {
+			my $items = shift;
+
+			# keep track information in the cache
+			foreach my $track (@{$items->{tracks}}) {
+				cache_track_info($items, $args);
+			}
+			
+			$cb->($items) if $cb;
+		}, 
 		$params, 
 		{
 			_url     => API_URL_ALBUM,
@@ -94,48 +104,58 @@ sub get_album_info {
 	);
 }
 
-
-# helper method to pre-cache all information related to a track 
-# unfortunately the track/info call would only return IDs for album
-# and artist, thus we have to do a bunch of calls for every track...
-#sub fetch_all_track_info {
-#	my ($track_id) = @_;
-#	
-#	$log->debug("Getting complete track info for: $track_id");
-#	
-#	_get( 
-#		sub {
-#			my $items = shift;
-#
-#			# for each track call the artist information and album information...
-#			foreach ( @{ $items } ) {
-#				
-#			}
-#
-#		}, 
-##		$params, 
-#		{
-#			_url     => API_URL_TRACK,
-#			track_id => $track_id,
-#		}
-#	);
-#}
-
 sub get_track_info {
-	my ($client, $cb, $params, $args) = @_;
+	my ($args, $cb) = @_;
 	
 	my $track_id = $args->{track_id};
 	
 	$log->debug("Getting track info for: $track_id");
 	
 	_get(
-		$cb, 
-		$params, 
+		sub {
+			my $items = shift;
+
+			$items = cache_track_info($items, $args);
+			$cb->($items) if $cb;
+		}, 
+		undef, 
 		{
 			_url     => API_URL_TRACK,
 			track_id => $track_id,
 		}
 	);
+}
+
+sub cache_track_info {
+	my ($track, $album) = @_;
+	
+	if (my $url = $track->{streaming_url}) {
+		# use album information to complete track information if available
+		if ($album) {
+			$track->{artist} ||= $album->{artist};
+			$track->{album}  ||= $album->{title};
+			$track->{image}  ||= $track->{large_art_url} || $album->{large_art_url} || $album->{small_art_url};
+			$track->{album_url} ||= $album->{url};
+		}
+			
+		# complete with cached values if needed
+		if ( my $cached = $cache->get('meta_' . $url) ) {
+			foreach (keys %$cached) {
+				$track->{$_} ||= $cached->{$_}; 
+			}
+		}
+			
+		# xxx - track api is broken, returning relative URLs; get domain name from album url
+		if ($track->{url} && $track->{url} =~ m|^/| && $track->{album_url}) {
+			my ($prefix) = $track->{album_url} =~ m|(http://.*?)/|;
+	
+			$track->{url} = $prefix . $track->{url};
+		}
+
+		$cache->set('meta_' . $url, $track, META_CACHE_TTL);
+	}
+	
+	return $track;
 }
 
 sub _get {

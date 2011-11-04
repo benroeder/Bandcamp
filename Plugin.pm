@@ -223,7 +223,7 @@ sub get_artist_albums {
 						get_album($client, $cb, $params, $args);
 					}
 					else {
-						Plugins::Bandcamp::API::get_track_info($client, $cb, $params, $args);
+						get_track($client, $cb, $params, $args);
 					}
 				},
 				$items
@@ -297,7 +297,7 @@ sub get_album {
 sub get_track {
 	my ($client, $cb, $params, $args) = @_;
 
-	Plugins::Bandcamp::API::get_track_info($client,
+	Plugins::Bandcamp::API::get_track_info($args,
 		sub {
 			my $items = shift;
 			
@@ -317,8 +317,6 @@ sub get_track {
 				items => $items,
 			}, @_ );
 		},
-		$params,
-		$args, 
 	)	
 }
 
@@ -330,20 +328,15 @@ sub get_item_info_by_url {
 			my ($items) = shift;
 			
 			if ($items->{album_id}) {
-				Plugins::Bandcamp::Plugin::get_album($client, $cb, $params, { 
-					album_id => $items->{album_id}, 
-					tracks   => $args->{tracks},
-					artist   => $args->{artist},
-					large_art_url => $args->{large_art_url},
-				});
+				$args->{album_id} ||= $items->{album_id};
+				
+				get_album($client, $cb, $params, $args);
 			}
 			else {
-				Plugins::Bandcamp::Plugin::get_track($client, $cb, $params, { 
-					track_id => $items->{track_id}, 
-					tracks   => $args->{tracks},
-					artist   => $args->{artist},
-					large_art_url => $args->{large_art_url},
-				});
+				$args->{track_id}  ||= $items->{track_id};
+				$args->{album_url} ||= $args->{url};
+				
+				get_track($client, $cb, $params, $args);
 			}
 		},
 		$params,
@@ -494,24 +487,7 @@ sub track_list {
 
 	my $tracks = [];
 	foreach my $track (@{$items->{tracks}}) {
-		$track->{artist} ||= $items->{artist};
-		$track->{album}  ||= $items->{title};
-		$track->{image}  ||= $track->{large_art_url} || $items->{large_art_url} || $items->{small_art_url};
-		$track->{album_url} ||= $items->{url};
-		
-		# complete with cached values if needed
-		if ( my $cached = $cache->get('meta_' . $track->{streaming_url}) ) {
-			foreach (keys %$cached) {
-				$track->{$_} ||= $cached->{$_}; 
-			}
-		}
-		
-		# xxx - track api is broken, returning relative URLs; get domain name from album url
-		if ($track->{url} && $track->{url} =~ m|^/| && $track->{album_url}) {
-			my ($prefix) = $track->{album_url} =~ m|(http://.*?)/|;
-	
-			$track->{url} = $prefix . $track->{url};
-		}
+		$track = Plugins::Bandcamp::API::cache_track_info($track, $items);
 		
 		my $trackinfo = [];
 
@@ -596,9 +572,6 @@ sub track_list {
 				track_id => $track->{track_id}
 			}]
 		};
-		
-		# cache metadata a little longer...
-		$cache->set('meta_' . $track->{streaming_url}, $track, CACHE_TTL * 5) if $track->{streaming_url};
 	}
 	
 	return $tracks;

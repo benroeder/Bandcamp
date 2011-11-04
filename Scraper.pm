@@ -14,6 +14,8 @@ use Slim::Networking::SimpleAsyncHTTP;
 use Slim::Utils::Cache;
 use Slim::Utils::Log;
 
+use Plugins::Bandcamp::API;
+
 use constant BASE_URL      => 'http://bandcamp.com/';
 use constant TAGS_BASE_URL => BASE_URL . 'tags/';
 use constant TAG_BASE_URL  => BASE_URL . 'tag/';
@@ -231,12 +233,29 @@ sub get_tag_items {
 					
 					next unless ($title || $artist) && $url;
 					
-					push @$result, {
+					my $meta = {
 						title  => $title,
 						artist => $artist,
 						large_art_url => $img,
 						url    => $url,
+					};
+					
+					# pre-fetch track information
+					if ($url =~ m|/track/|) {
+						Plugins::Bandcamp::API::get_item_info_by_url($client,
+							sub {
+								my ($items) = shift;
+			
+								if ($items->{track_id}) {
+									Plugins::Bandcamp::API::get_track_info($items);
+								}
+							}, 
+							$params,
+							$meta,
+						);
 					}
+					
+					push @$result, $meta;
 				} 
 
 				@$result = sort { uc($a->{name}) cmp uc($b->{name}) } @$result;
