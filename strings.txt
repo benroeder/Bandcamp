@@ -17,8 +17,8 @@ PLUGIN_BANDCAMP_META
 	DE	Entdecke Künstler, und spiele deren Alben und Tracks von bandcamp.com
 	EN	Browse and play artists, albums and tracks from bandcamp.com
 
-PLUGIN_BANDCAMP_TAGS
-	EN	Tags
+#PLUGIN_BANDCAMP_TAGS
+#	EN	Tags
 
 PLUGIN_BANDCAMP_SEARCHFOR_TAGS
 	DE	Nach Tags suchen

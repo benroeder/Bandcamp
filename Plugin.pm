@@ -126,7 +126,7 @@ sub handleFeed {
 				url  => \&Plugins::Bandcamp::Search::search
 			},
 			{
-				name => cstring($client, 'PLUGIN_BANDCAMP_TAGS'),
+				name => cstring($client, 'GENRES'),
 				type => 'link',
 				url  => \&get_tags,
 			},
@@ -485,9 +485,12 @@ sub tag_list {
 	
 	my $results = [];
 	
+	$items = [ sort { uc($a->{name}) cmp uc($b->{name}) } @$items ];
+	
 	foreach my $item ( @$items ) {
 		push @$results, {
 			name => $item->{name},
+			textkey => substr( uc($item->{name}), 0, 1 ),
 			url  => \&get_tag_items,
 			type => 'link',
 			passthrough => [ { tag_url => $item->{url} } ]

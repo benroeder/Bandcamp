@@ -90,8 +90,6 @@ sub get_top_sellers {
 					}
 				} 
 
-				@$result = sort { uc($a->{name}) cmp uc($b->{name}) } @$result;
-				
 				$cache->set( 'top_sellers', $result, CACHE_TTL );
 			}
 			
@@ -189,8 +187,6 @@ sub get_tag_list {
 				} 
 			}
 
-			@$result = sort { uc($a->{name}) cmp uc($b->{name}) } @$result;
-
 			$cache->set( 'taglist', $result, CACHE_TTL ) if @$result;
 
 			return $result;
@@ -258,8 +254,6 @@ sub get_tag_items {
 					push @$result, $meta;
 				} 
 
-				@$result = sort { uc($a->{name}) cmp uc($b->{name}) } @$result;
-				
 				$cache->set( 'tag_album_' . $args->{tag_url}, $result, CACHE_TTL );
 			}
 			
