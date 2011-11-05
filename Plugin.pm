@@ -404,7 +404,7 @@ sub metadata_provider {
 					ts       => time(),
 				};
 				
-				$cache->set('recent_plays', \%recent_plays, RECENT_CACHE_TTL) if %recent_plays;
+				$cache->set('recent_plays', \%recent_plays, RECENT_CACHE_TTL);
 			}
 			
 			$cached->{album_url} =~ s/\?pk=.*//;

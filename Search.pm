@@ -1,6 +1,7 @@
 package Plugins::Bandcamp::Search;
 
 use strict;
+use Tie::Cache::LRU;
 
 use Slim::Utils::Log;
 use Slim::Utils::Strings qw(string cstring);
@@ -16,10 +17,21 @@ my $log = logger('plugin.bandcamp');
 
 my $search_results = {};
 
+my %recent_searches;
+tie %recent_searches, 'Tie::Cache::LRU', MAX_RECENT_ITEMS;
+
 my $cache;
 
 sub init {
 	$cache = shift;
+
+	# initialize recent searches: need to add them to the LRU cache ordered by timestamp
+	my $recent_searches = $cache->get('recent_searches');
+	map {
+		$recent_searches{$_} = $recent_searches->{$_};
+	} sort { 
+		$recent_searches->{$a}->{ts} <=> $recent_searches->{$a}->{ts} 
+	} keys %$recent_searches;
 }
 
 sub search {
@@ -126,73 +138,25 @@ sub _search_done {
 }
 
 sub add_recent_search {
-	_recent_search(shift, 1);
-}
-
-sub remove_recent_search {
-	_recent_search(shift);
-}
-
-sub get_recent_searches {
-	return _recent_search();
-}
-
-sub _recent_search {
-	my ($search, $add) = @_;
+	my $search = shift;
 	
-	my $recent = $cache->get('recent_searches') || [];
-	$recent = [] if ref $recent ne 'ARRAY' || ref $recent->[0] ne 'HASH';
-
-	if (defined $search) {
-		my $existing;
-		my $oldest;
-		my $oldest_ts = time();
-		my $x = 0;
-		
-		foreach (@$recent) {
-			if ( lc($_->{name}) eq lc($search) ) {
-				$existing = $x; 
-			}
-			
-			if ( ($_->{ts} || -1) < $oldest_ts) {
-				$oldest = $x;
-				$oldest_ts = $_->{ts};
-			}
-			
-			$x++;
-		}
-
-		# update timestamp if it already exists
-		if ($add && defined $existing) {
-			$recent->[$existing]->{ts} = time();
-		}
-		# add search term if not defined yet
-		elsif ($add) {
-			push @$recent, {
-				name => $search,
-				ts   => time(),
-			};
-		}
-		# remove item
-		elsif ($existing) {
-			splice(@$recent, $existing, 1);
-		}
-
-		# remove oldest item if the list is larger than desired
-		if (scalar @$recent > MAX_RECENT_ITEMS && defined $oldest) {
-			splice(@$recent, $oldest, 1);
-		}
-		
-		$cache->set('recent_searches', $recent, RECENT_CACHE_TTL);
-	}
+	return unless $search;
 	
-	return [ map { $_->{name} } @$recent ];
+	$recent_searches{$search} = {
+		ts => time(),
+	};
+	
+	$cache->set('recent_searches', \%recent_searches, RECENT_CACHE_TTL);
 }
 
 sub recent_searches {
 	my ($client, $cb, $args) = @_;
 
-	my $recent = _recent_search();
+	my $recent = [ 
+		sort 
+		grep { $recent_searches{$_} }
+		keys %recent_searches 
+	];
 	
 	my $items = [];
 	
@@ -206,6 +170,11 @@ sub recent_searches {
 			}],
 		}
 	}
+
+	$items = [ {
+		name => string('EMPTY'),
+		type => 'text',
+	} ] if !scalar @$items;
 	
 	$cb->({
 		items => $items
