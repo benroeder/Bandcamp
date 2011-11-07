@@ -11,7 +11,6 @@ use HTML::TreeBuilder;
 use Scalar::Util qw(blessed);
 
 use Slim::Networking::SimpleAsyncHTTP;
-use Slim::Utils::Cache;
 use Slim::Utils::Log;
 
 use Plugins::Bandcamp::API;
@@ -288,10 +287,7 @@ sub _get {
 				$result = $parseCB->($tree) if $parseCB;
 
 				if (!scalar @$result) {
-					$result = [{
-						name => cstring($client, 'EMPTY'),
-						type => 'text',
-					}]
+					$result = [];
 				}
 			}
 			else {

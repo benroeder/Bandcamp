@@ -238,7 +238,7 @@ sub get_tag_items {
 	Plugins::Bandcamp::Scraper::get_tag_items($client,
 		sub {
 			my $items = shift;
-			$cb->( album_list(\&Plugins::Bandcamp::Plugin::get_item_info_by_url, $items) );
+			$cb->( album_list(\&get_item_info_by_url, $items) );
 		},
 		$params,
 		$args,

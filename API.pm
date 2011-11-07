@@ -7,7 +7,6 @@ use URI::Escape;
 
 use Slim::Networking::SimpleAsyncHTTP;
 use Slim::Utils::Log;
-use Slim::Utils::Strings qw(string cstring);
 
 use constant API_URL_ALBUM => 'http://api.bandcamp.com/api/album/2/info';
 use constant API_URL_BAND  => 'http://api.bandcamp.com/api/band/3/';
