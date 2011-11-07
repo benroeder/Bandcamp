@@ -193,7 +193,7 @@ sub recently_played {
 	my ($client, $cb, $params) = @_;
 
 	my $items = [ 
-		sort { $a->{title} cmp $b->{title} } 
+		sort { lc($a->{title}) cmp lc($b->{title}) } 
 		map { $recent_plays{$_} } 
 		grep { $recent_plays{$_} }
 		keys %recent_plays 

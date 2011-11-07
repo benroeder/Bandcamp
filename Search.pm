@@ -153,7 +153,7 @@ sub recent_searches {
 	my ($client, $cb, $args) = @_;
 
 	my $recent = [ 
-		sort 
+		sort { lc($a) cmp lc($b) } 
 		grep { $recent_searches{$_} }
 		keys %recent_searches 
 	];
