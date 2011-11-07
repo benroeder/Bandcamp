@@ -24,7 +24,7 @@ my $log = Slim::Utils::Log->addLogCategory( {
 use constant PLUGIN_TAG       => 'bandcamp';
 use constant STREAM_URL_REGEX => qr/bandcamp\.com\/download\/track/i;
 use constant CACHE_TTL        => 3600 * 12;
-use constant MAX_RECENT_ITEMS => 20;
+use constant MAX_RECENT_ITEMS => 50;
 use constant RECENT_CACHE_TTL => 60*60*24*365;
 
 my $cache = Slim::Utils::Cache->new('plugin_bandcamp', 2);
@@ -121,11 +121,6 @@ sub handleFeed {
 				url  => \&recently_played,
 			},
 			{
-				name  => cstring($client, 'SEARCH'),
-				type => 'search',
-				url  => \&Plugins::Bandcamp::Search::search
-			},
-			{
 				name => cstring($client, 'GENRES'),
 				type => 'link',
 				url  => \&get_tags,
@@ -134,6 +129,11 @@ sub handleFeed {
 				name => cstring($client, 'PLUGIN_BANDCAMP_LOCATIONS'),
 				type => 'link',
 				url  => \&get_locations,
+			},
+			{
+				name  => cstring($client, 'SEARCH'),
+				type => 'search',
+				url  => \&Plugins::Bandcamp::Search::search
 			},
 			{
 				name => cstring($client, 'RECENT_SEARCHES'),

@@ -10,7 +10,7 @@ use Plugins::Bandcamp::Plugin;
 use Plugins::Bandcamp::API;
 use Plugins::Bandcamp::Scraper;
 
-use constant MAX_RECENT_ITEMS => 20;
+use constant MAX_RECENT_ITEMS => 50;
 use constant RECENT_CACHE_TTL => 60*60*24*365;
 
 my $log = logger('plugin.bandcamp');
@@ -79,7 +79,7 @@ sub _search_tags {
 			my $search = $params->{search};
 			add_recent_search($search) if $search && scalar @{ $items->{discography} };
 			
-			$search_results->{$client || ''}->{'tag_search'} = Plugins::Bandcamp::Plugin::album_list(\&Plugins::Bandcamp::Plugin::get_item_info_by_url, $items);
+			$search_results->{$client || ''}->{'tag_search'} = Plugins::Bandcamp::Plugin::album_list($client, \&Plugins::Bandcamp::Plugin::get_item_info_by_url, $items);
 			_search_done($client, $cb);
 		}, 
 		$params,
