@@ -62,3 +62,7 @@ PLUGIN_BANDCAMP_OTHER_TRACKS
 PLUGIN_FROM_BANDCAMP
 	DE	Auf bandcamp.com
 	EN	From bandcamp.com
+
+PLUGIN_BANDCAMP_MORE_MATCHES
+	DE	Mehr Treffer ...
+	EN	More matches...

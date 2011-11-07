@@ -150,7 +150,7 @@ sub get_top_sellers {
 	Plugins::Bandcamp::Scraper::get_top_sellers($client,
 		sub {
 			my $items = shift;
-			$cb->( album_list(\&get_item_info_by_url, $items) );
+			$cb->( album_list($client, \&get_item_info_by_url, $items) );
 		},
 		$params,
 	);
@@ -165,7 +165,7 @@ sub get_featured_album {
 			
 			my $item   = $items->[0];
 
-			my $result = album_list(\&get_item_info_by_url, {
+			my $result = album_list($client, \&get_item_info_by_url, {
 				discography => [ $item ]
 			});
 
@@ -199,7 +199,7 @@ sub recently_played {
 		keys %recent_plays 
 	];
 
-	$items = album_list(\&get_item_info_by_url, {
+	$items = album_list($client, \&get_item_info_by_url, {
 		discography => $items
 	});
 	
@@ -238,7 +238,7 @@ sub get_tag_items {
 	Plugins::Bandcamp::Scraper::get_tag_items($client,
 		sub {
 			my $items = shift;
-			$cb->( album_list(\&get_item_info_by_url, $items) );
+			$cb->( album_list($client, \&get_item_info_by_url, $items) );
 		},
 		$params,
 		$args,
@@ -252,7 +252,7 @@ sub get_artist_albums {
 		sub {
 			my $items = shift;
 
-			$cb->( album_list(
+			$cb->( album_list($client, 
 				sub {
 					my ($client, $cb, $params, $args) = @_;
 					if ($args->{album_id}) {
@@ -359,25 +359,33 @@ sub get_track {
 sub get_item_info_by_url {
 	my ($client, $cb, $params, $args) = @_;
 	
-	Plugins::Bandcamp::API::get_item_info_by_url($client,
-		sub {
-			my ($items) = shift;
-			
-			if ($items->{album_id}) {
-				$args->{album_id} ||= $items->{album_id};
+	# "Get more..." link
+	if ($args->{album_url} =~ m|bandcamp\.com/tag/.*?/\?page=|) {
+		get_tag_items($client, $cb, $params, {
+			tag_url => $args->{album_url}
+		});
+	}
+	else {
+		Plugins::Bandcamp::API::get_item_info_by_url($client,
+			sub {
+				my ($items) = shift;
 				
-				get_album($client, $cb, $params, $args);
-			}
-			else {
-				$args->{track_id}  ||= $items->{track_id};
-				$args->{album_url} ||= $args->{url};
-				
-				get_track($client, $cb, $params, $args);
-			}
-		},
-		$params,
-		$args,
-	);
+				if ($items->{album_id}) {
+					$args->{album_id} ||= $items->{album_id};
+					
+					get_album($client, $cb, $params, $args);
+				}
+				else {
+					$args->{track_id}  ||= $items->{track_id};
+					$args->{album_url} ||= $args->{url};
+					
+					get_track($client, $cb, $params, $args);
+				}
+			},
+			$params,
+			$args,
+		);
+	}
 }
 
 # helper methods for metadata and trackinfo
@@ -501,7 +509,7 @@ sub tag_list {
 }
 
 sub album_list {
-	my ($cb, $items) = @_;
+	my ($client, $cb, $items) = @_;
 	
 	return [ {
 		name => $items->{error},
@@ -511,8 +519,17 @@ sub album_list {
 	my $albums = [];
 	foreach (@{$items->{discography}}) {
 		next unless ref $_ eq 'HASH';
+		
+		my $type = 'playlist';
 
 		$_->{title} ||= $_->{album};
+		
+		# special case for the "get more..." item in tags lists
+		if ( $_->{title} eq 'PLUGIN_BANDCAMP_MORE_MATCHES' ) {
+			$_->{title} = cstring($client, $_->{title}),
+			$type = 'link',
+		}
+		
 		push @$albums, {
 			name  => $_->{title} . ($_->{artist} ? ' - ' . $_->{artist} : ''),
 			line1 => $_->{artist} ? $_->{title} : undef,
@@ -529,12 +546,12 @@ sub album_list {
 				large_art_url => $_->{large_art_url} || $_->{image},
 				tracks    => 1,
 			}],
-			type  => 'playlist',
+			type  => $type,
 		};
 	}
 
 	return [ {
-		name => string('EMPTY'),
+		name => cstring($client, 'EMPTY'),
 		type => 'text',
 	} ] if !scalar @$albums;
 	

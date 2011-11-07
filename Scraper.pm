@@ -128,7 +128,9 @@ sub get_featured_album {
 				my $artist;
 				if ($title) {
 					($artist, $title) = split /:/, $title;
+					$title = $artist if !$title;
 					$title =~ s/^\s*//;
+					$artist = '';
 				}
 				
 				my @text = $featured->look_down('_tag', 'div', 'class', qr/featured[a-z\-]+text/);
@@ -210,7 +212,7 @@ sub get_tag_items {
 			my $tree   = shift;
 			my $result = [];
 
-			my $results   = $tree->look_down("_tag", "div", "class", "results");
+			my $results = $tree->look_down("_tag", "div", "class", "results");
 			
 			if ($results) {
 				my $item_list = $results->look_down("_tag", "ul", "class", "item_list");
@@ -252,6 +254,16 @@ sub get_tag_items {
 					
 					push @$result, $meta;
 				} 
+			
+				# add item to get more albums if available
+				my $more = $tree->look_down('_tag', 'span', 'class', 'nextprev next');
+				
+				if ( $more && (my $url = $more->find('a')->attr('href')) ) {
+					push @$result, {
+						title => 'PLUGIN_BANDCAMP_MORE_MATCHES',
+						url   => $args->{tag_url} . '/' . $url,
+					}
+				}
 
 				$cache->set( 'tag_album_' . $args->{tag_url}, $result, CACHE_TTL );
 			}
