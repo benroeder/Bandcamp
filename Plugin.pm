@@ -27,7 +27,7 @@ use constant CACHE_TTL        => 3600 * 12;
 use constant MAX_RECENT_ITEMS => 50;
 use constant RECENT_CACHE_TTL => 60*60*24*365;
 
-my $cache = Slim::Utils::Cache->new('plugin_bandcamp', 2);
+my $cache = Slim::Utils::Cache->new('bandcamp', 2);
 
 my %recent_plays;
 tie %recent_plays, 'Tie::Cache::LRU', MAX_RECENT_ITEMS;
