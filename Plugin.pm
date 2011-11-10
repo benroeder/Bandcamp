@@ -116,6 +116,11 @@ sub handleFeed {
 				url  => \&get_featured_album,
 			},
 			{
+				name => cstring($client, 'PLUGIN_BANDCAMP_SELLING'),
+				type => 'link',
+				url  => \&get_selling_items,
+			},
+			{
 				name  => cstring($client, 'PLUGIN_BANDCAMP_RECENTLY_PLAYED'),
 				type => 'link',
 				url  => \&recently_played,
@@ -184,6 +189,24 @@ sub get_featured_album {
 			} if $item->{header};
 
 			$cb->( $result );
+		},
+		$params,
+	);
+}
+
+sub get_selling_items {
+	my ($client, $cb, $params) = @_;
+	
+	if (!defined $params->{index}) {
+		$params->{sid} = 'yo!';
+	}
+
+	Plugins::Bandcamp::API::get_sales_feed($client,
+		sub {
+			my $items = shift;
+			$cb->( album_list($client, \&get_item_info_by_url, {
+				discography => $items,
+			}) );
 		},
 		$params,
 	);
@@ -535,7 +558,7 @@ sub album_list {
 			line1 => $_->{artist} ? $_->{title} : undef,
 			line2 => $_->{artist},
 			url   => $cb,
-			image => $_->{large_art_url} || $_->{image},
+			image => $_->{large_art_url} || $_->{small_art_url} || $_->{image},
 			passthrough => [{ 
 				album_id  => $_->{album_id},
 				album_url => $_->{url},

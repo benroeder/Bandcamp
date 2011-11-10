@@ -12,6 +12,7 @@ use constant API_URL_ALBUM => 'http://api.bandcamp.com/api/album/2/info';
 use constant API_URL_BAND  => 'http://api.bandcamp.com/api/band/3/';
 use constant API_URL_TRACK => 'http://api.bandcamp.com/api/track/1/info';
 use constant API_URL_URL   => 'http://api.bandcamp.com/api/url/1/info';
+use constant API_URL_SALES => 'http://bandcamp.com/cb_homepage_feed';
 use constant CACHE_TTL     => 3600 * 12;
 use constant META_CACHE_TTL=> 86400 * 30;
 
@@ -30,7 +31,7 @@ sub search_artists {
 	my $search = $args->{search};
 	my $params = $args->{params};
 	
-	$log->debug("Searching for artists: $search");
+	main::DEBUGLOG && $log->debug("Searching for artists: $search");
 	
 	_get( 
 		$cb,
@@ -48,7 +49,7 @@ sub get_artist_albums {
 	
 	my $band_id = $args->{band_id};
 	
-	$log->debug("Getting albums for artist: $band_id");
+	main::DEBUGLOG && $log->debug("Getting albums for artist: $band_id");
 	
 	_get(
 		$cb, 
@@ -65,7 +66,7 @@ sub get_item_info_by_url {
 	
 	my $url = $args->{url};
 	
-	$log->debug("Getting information for url: $url");
+	main::DEBUGLOG && $log->debug("Getting information for url: $url");
 	
 	_get(
 		$cb, 
@@ -82,7 +83,7 @@ sub get_album_info {
 	
 	my $album_id = $args->{album_id};
 	
-	$log->debug("Getting tracks for album: $album_id");
+	main::DEBUGLOG && $log->debug("Getting tracks for album: $album_id");
 	
 	_get( 
 		sub {
@@ -108,7 +109,7 @@ sub get_track_info {
 	
 	my $track_id = $args->{track_id};
 	
-	$log->debug("Getting track info for: $track_id");
+	main::DEBUGLOG && $log->debug("Getting track info for: $track_id");
 	
 	_get(
 		sub {
@@ -121,6 +122,71 @@ sub get_track_info {
 		{
 			_url     => API_URL_TRACK,
 			track_id => $track_id,
+		}
+	);
+}
+
+sub get_sales_feed {
+	my ($client, $cb, $params) = @_;
+	
+	main::DEBUGLOG && $log->debug("Getting sales feed");
+	
+	if (my $cached = $cache->get('sales_feed_' . $client->id)) {
+		main::DEBUGLOG && $log->debug('found cached api response' . Data::Dump::dump($cached));
+		$cb->($cached) if $cb;
+		return;
+	}
+	
+	_get(
+		sub {
+			my $items = shift;
+
+			my @albums;
+			foreach my $event (@{$items->{events}}) {
+				next unless $event->{event_type} && $event->{event_type} eq 'sale';
+				
+				foreach ( @{$event->{items}} ) {
+					# we only want albums and tracks
+					next unless $_->{item_type} && $_->{item_type} =~ /^[at]$/;
+					
+					my $meta = {
+						artist => $_->{artist_name},
+						title  => $_->{item_description},
+						small_art_url => $_->{art_url},
+						url    => $_->{band_url} . ($_->{item_slug} || $_->{album_slug}),
+					};
+					
+					if ($_->{item_type} eq 't') {
+						get_item_info_by_url($client,
+							sub {
+								my ($items) = shift;
+			
+								if ($items->{track_id}) {
+									get_track_info($items);
+								}
+							}, 
+							$params,
+							$meta,
+						);
+					}
+
+					$meta->{url} = $_->{band_url} . ($_->{album_slug} || $_->{item_slug});
+					
+					push @albums, $meta;
+				}
+			}
+			
+			# only cache responses for for a short period, as data is changing often
+			$cache->set('sales_feed_' . $client->id, \@albums, 300);
+
+			$cb->(\@albums) if $cb;
+		}, 
+		undef, 
+		{
+			_url       => API_URL_SALES,
+			_nocache   => 1,		# sales update every minute
+			_nokey     => 1,
+			start_date => time() - 600,
 		}
 	);
 }
@@ -160,13 +226,14 @@ sub cache_track_info {
 sub _get {
 	my ( $cb, $params, $args ) = @_;
 	
-	my $url = (delete $args->{_url}) . '?key=' . $dk;
+	my $url = (delete $args->{_url}) . ($args->{_nokey} ? '?' : '?key=' . $dk);
 		
 	for my $k ( keys %{$args} ) {
+		next if $k =~ /^_/;
 		$url .= '&' . $k . '=' . URI::Escape::uri_escape_utf8( Encode::decode( 'utf8', $args->{$k} ) );
 	}
 
-	$log->debug($url);
+	main::DEBUGLOG && $log->debug($url);
 	
 	if (my $cached = $cache->get('api_' . $url)) {
 		main::DEBUGLOG && $log->debug('found cached api response' . Data::Dump::dump($cached));
@@ -194,7 +261,7 @@ sub _get {
 					};
 					$log->error($result->{error});
 				}
-				else {
+				elsif (!$args->{_nocache}) {
 					$cache->set('api_' . $url, $result, CACHE_TTL);
 				}
 			}

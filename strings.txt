@@ -12,6 +12,10 @@ PLUGIN_BANDCAMP_TOPSELLERS
 PLUGIN_BANDCAMP_RECENTLY_PLAYED
 	DE	Kürzlich gespielte Alben
 	EN	Albums Recently Played
+	
+PLUGIN_BANDCAMP_SELLING
+	DE	Wird eben gekauft
+	EN	Selling right now
 
 PLUGIN_BANDCAMP_META
 	DE	Entdecke Künstler, und spiele deren Alben und Tracks von bandcamp.com
