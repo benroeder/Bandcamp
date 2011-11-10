@@ -142,12 +142,13 @@ sub get_sales_feed {
 			my $items = shift;
 
 			my @albums;
-			foreach my $event (@{$items->{events}}) {
+			my %seen;
+			foreach my $event (reverse @{$items->{events}}) {
 				next unless $event->{event_type} && $event->{event_type} eq 'sale';
 				
-				foreach ( @{$event->{items}} ) {
-					# we only want albums and tracks
-					next unless $_->{item_type} && $_->{item_type} =~ /^[at]$/;
+				foreach ( reverse @{$event->{items}} ) {
+					# we only want packages with artwork, albums and tracks
+					next unless $_->{item_type} && $_->{item_type} =~ /^[atp]$/ && $_->{art_url};
 					
 					my $meta = {
 						artist => $_->{artist_name},
@@ -171,6 +172,10 @@ sub get_sales_feed {
 					}
 
 					$meta->{url} = $_->{band_url} . ($_->{album_slug} || $_->{item_slug});
+					
+					next if $seen{$meta->{url}};
+					
+					$seen{$meta->{url}} = 1;
 					
 					push @albums, $meta;
 				}
