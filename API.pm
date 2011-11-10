@@ -131,7 +131,7 @@ sub get_sales_feed {
 	
 	main::DEBUGLOG && $log->debug("Getting sales feed");
 	
-	if (my $cached = $cache->get('sales_feed_' . $client->id)) {
+	if ( $params->{use_cache} && (my $cached = $cache->get('sales_feed_' . $client->id)) ) {
 		main::DEBUGLOG && $log->debug('found cached api response' . Data::Dump::dump($cached));
 		$cb->($cached) if $cb;
 		return;
@@ -176,8 +176,7 @@ sub get_sales_feed {
 				}
 			}
 			
-			# only cache responses for for a short period, as data is changing often
-			$cache->set('sales_feed_' . $client->id, \@albums, 300);
+			$cache->set('sales_feed_' . $client->id, \@albums, CACHE_TTL * 5);
 
 			$cb->(\@albums) if $cb;
 		}, 

@@ -197,10 +197,9 @@ sub get_featured_album {
 sub get_selling_items {
 	my ($client, $cb, $params) = @_;
 	
-	if (!defined $params->{index}) {
-		$params->{sid} = 'yo!';
-	}
-
+	# odd hack to only cache results when entering the menu, but not when drilling down from there
+	$params->{use_cache} = ( ($params->{isControl} && $params->{index}) || ($params->{isWeb} && defined $params->{index}) ) ? 1 : 0;
+	
 	Plugins::Bandcamp::API::get_sales_feed($client,
 		sub {
 			my $items = shift;
