@@ -32,6 +32,8 @@ my $cache = Slim::Utils::Cache->new('bandcamp', 2);
 my %recent_plays;
 tie %recent_plays, 'Tie::Cache::LRU', MAX_RECENT_ITEMS;
 
+my $does_scrobble;
+
 sub initPlugin {
 	my $class = shift;
 
@@ -440,23 +442,44 @@ sub metadata_provider {
 			$cached->{album_url} =~ s/\?pk=.*//;
 		}
 		
+		my $does_scrobble = _does_scrobble($client);
+		
 		$meta = {
 			title    => $cached->{title},
-			artist   => $cached->{album} . ($cached->{album} ? ' - ' : '') . $cached->{artist},
+			artist   => $does_scrobble ? $cached->{artist} : ($cached->{album} . ($cached->{album} ? ' - ' : '') . $cached->{artist}),
 			# we'll abuse the album name for the album URL to satisfy the terms of use...
-			album    => $cached->{album_url},
+			album    => $does_scrobble ? $cached->{album} : $cached->{album_url},
 			duration => $cached->{duration},
 			cover    => $cached->{image},
-#			bitrate  => '128k CBR',
-#			type     => 'MP3 (bandcamp.com)',
-#			icon     => __PACKAGE__->getIcon(),
 		};
-#	warn Data::Dump::dump($cached);
 	}
 	
-#	warn Data::Dump::dump($meta);
-	
 	return $meta;
+}
+
+sub _does_scrobble {
+	my $client = shift;
+	
+	# check whether user is scrobbling to last.fm - in this case we don't report the artist's url, but real metadata...
+	if ( !defined $does_scrobble ) {
+		$does_scrobble = 0;
+		eval {
+			$does_scrobble = Slim::Utils::Prefs::preferences('plugin.audioscrobbler')->get('enable_scrobbling') && Slim::Plugin::AudioScrobbler::Plugin->condition();
+		};
+	}
+	
+	# scrobbling is globally disabled
+	return if !$does_scrobble;
+	
+	my $_does_scrobble = $client->pluginData('does_scrobble');
+	
+	return $_does_scrobble if defined $_does_scrobble;
+	
+	$_does_scrobble = Slim::Utils::Prefs::preferences('plugin.audioscrobbler')->client($client)->get('account');
+	
+	$client->pluginData( 'does_scrobble' => ($_does_scrobble ? 1 : 0) );
+	
+	return $_does_scrobble;
 }
 
 sub trackInfoMenu {
