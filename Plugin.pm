@@ -22,7 +22,7 @@ my $log = Slim::Utils::Log->addLogCategory( {
 } );
 
 use constant PLUGIN_TAG       => 'bandcamp';
-use constant STREAM_URL_REGEX => qr/bandcamp\.com\/download\/track/i;
+use constant STREAM_URL_REGEX => qr/(?:bcbits|bandcamp)\.com\/download\/track/i;
 use constant CACHE_TTL        => 3600 * 12;
 use constant MAX_RECENT_ITEMS => 50;
 use constant RECENT_CACHE_TTL => 60*60*24*365;
@@ -421,7 +421,8 @@ sub metadata_provider {
 		cover  => __PACKAGE__->_pluginDataFor('icon'),
 	};
 	
-	if (my $cached = $cache->get('meta_' . $url)) {
+	my $key = Plugins::Bandcamp::API::track_key($url);
+	if (my $cached = $cache->get('meta_' . $key)) {
 		if ($cached->{album_url}) {
 			my $song = $client->playingSong();
 
@@ -491,7 +492,8 @@ sub trackInfoMenu {
 	
 	return unless $url && $url =~ STREAM_URL_REGEX;
 
-	if (my $cached = $cache->get('meta_' . $url)) {
+	my $key = Plugins::Bandcamp::API::track_key($url);
+	if (my $cached = $cache->get('meta_' . $key)) {
 		$cached->{large_art_url} = $cached->{image};
 		$cached->{notracks}      = 1;
 		

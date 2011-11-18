@@ -208,7 +208,8 @@ sub cache_track_info {
 		}
 			
 		# complete with cached values if needed
-		if ( my $cached = $cache->get('meta_' . $url) ) {
+		my $key = $track->{track_id} || track_key($track->{streaming_url});
+		if ( my $cached = $cache->get('meta_' . $key) ) {
 			foreach (keys %$cached) {
 				$track->{$_} ||= $cached->{$_}; 
 			}
@@ -221,10 +222,17 @@ sub cache_track_info {
 			$track->{url} = $prefix . $track->{url};
 		}
 
-		$cache->set('meta_' . $url, $track, META_CACHE_TTL);
+		$cache->set('meta_' . $key, $track, META_CACHE_TTL);
 	}
 	
 	return $track;
+}
+
+sub track_key {
+	my $url = shift;
+	
+	$url =~ /id=(\d+)/i;
+	return $1 || '';
 }
 
 sub _get {
