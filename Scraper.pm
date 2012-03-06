@@ -100,6 +100,61 @@ sub get_top_sellers {
 	);
 }
 
+sub get_staff_picks {
+	my ( $client, $cb, $params ) = @_;
+
+	_get($client,
+		sub {
+			$cb->({
+				discography => shift
+			});
+		},
+		sub {
+			my $tree   = shift;
+			my $result = [];
+
+			my $results = $tree->look_down("_tag", "div", "class", "hp-staff-picks");
+
+			if ($results) {
+				my $item_list = $results->look_down("_tag", "ul");
+
+				foreach ($item_list->content_list) {
+
+					my $img = $_->find('img')->attr('src');
+					my $url = $_->find('a')->attr('href'); 
+					$url =~ s/\?.*from=staffpicks$//;
+					 
+					my $title = $_->find_by_attribute('class', 'album-name-artist');
+					$title = $title->find('a')->content if $title;
+					$title = ref $title eq 'ARRAY' ? $title->[0] : undef;
+					$title =~ s/\s*$// if $title;
+					
+					my $artist = $_->find_by_attribute('class', 'nb');
+					$artist = $artist->content if $artist;
+					$artist = ref $artist eq 'ARRAY' ? $artist->[0] : undef;
+					$artist =~ s/^by // if $artist;
+					
+					next unless ($title || $artist) && $url;
+					
+					push @$result, {
+						title  => $title,
+						artist => $artist,
+						large_art_url => $img,
+						url    => $url,
+					}
+				} 
+
+				$cache->set( 'staff_picks', $result, CACHE_TTL );
+			}
+			
+			return $result;
+		},
+		$params,
+		'staff_picks',
+		BASE_URL
+	);
+}
+
 sub get_featured_album {
 	my ( $client, $cb, $params ) = @_;
 
@@ -295,7 +350,7 @@ sub _get {
 			if ( $response->headers->content_type =~ /html/ ) {
 				my $tree = HTML::TreeBuilder->new;
 				$tree->parse_content( Encode::decode( 'utf8', $response->content) );
-				
+
 				$result = $parseCB->($tree) if $parseCB;
 
 				if (!scalar @$result) {

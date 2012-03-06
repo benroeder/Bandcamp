@@ -70,3 +70,18 @@ PLUGIN_FROM_BANDCAMP
 PLUGIN_BANDCAMP_MORE_MATCHES
 	DE	Mehr Treffer ...
 	EN	More matches...
+
+PLUGIN_BANDCAMP_STAFF_PICKS
+	CS	Výběr našeho personálu
+	DA	Vi anbefaler
+	DE	Unsere Empfehlungen
+	EN	Staff Picks
+	ES	Nuestras selecciones
+	FI	Suositukset
+	FR	Notre sélection
+	IT	Scelti dallo staff
+	NL	Aanraders van personeel
+	NO	Utvalgte stasjoner
+	PL	Wybór pracowników
+	RU	Наш выбор
+	SV	Våra favoriter

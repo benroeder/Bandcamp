@@ -112,10 +112,15 @@ sub handleFeed {
 				type => 'link',
 				url  => \&get_top_sellers,
 			},
+#			{
+#				name => cstring($client, 'PLUGIN_BANDCAMP_FEATURED_ALBUM'),
+#				type => 'link',
+#				url  => \&get_featured_album,
+#			},
 			{
-				name => cstring($client, 'PLUGIN_BANDCAMP_FEATURED_ALBUM'),
+				name => cstring($client, 'PLUGIN_BANDCAMP_STAFF_PICKS'),
 				type => 'link',
-				url  => \&get_featured_album,
+				url  => \&get_staff_picks,
 			},
 			{
 				name => cstring($client, 'PLUGIN_BANDCAMP_SELLING'),
@@ -191,6 +196,18 @@ sub get_featured_album {
 			} if $item->{header};
 
 			$cb->( $result );
+		},
+		$params,
+	);
+}
+
+sub get_staff_picks {
+	my ($client, $cb, $params) = @_;
+
+	Plugins::Bandcamp::Scraper::get_staff_picks($client,
+		sub {
+			my $items = shift;
+			$cb->( album_list($client, \&get_item_info_by_url, $items) );
 		},
 		$params,
 	);
