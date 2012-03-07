@@ -11,7 +11,7 @@ use Plugins::Bandcamp::API;
 use Plugins::Bandcamp::Scraper;
 
 use constant MAX_RECENT_ITEMS => 50;
-use constant RECENT_CACHE_TTL => 60*60*24*365;
+use constant RECENT_CACHE_TTL => 'never';
 
 my $log = logger('plugin.bandcamp');
 

@@ -25,7 +25,7 @@ use constant PLUGIN_TAG       => 'bandcamp';
 use constant STREAM_URL_REGEX => qr/(?:bcbits|bandcamp)\.com\/download\/track/i;
 use constant CACHE_TTL        => 3600 * 12;
 use constant MAX_RECENT_ITEMS => 50;
-use constant RECENT_CACHE_TTL => 60*60*24*365;
+use constant RECENT_CACHE_TTL => 'never';
 
 my $cache = Slim::Utils::Cache->new('bandcamp', 2);
 
