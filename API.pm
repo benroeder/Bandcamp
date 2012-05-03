@@ -10,7 +10,7 @@ use Slim::Utils::Log;
 
 use constant API_URL_ALBUM => 'http://api.bandcamp.com/api/album/2/info';
 use constant API_URL_BAND  => 'http://api.bandcamp.com/api/band/3/';
-use constant API_URL_TRACK => 'http://api.bandcamp.com/api/track/1/info';
+use constant API_URL_TRACK => 'http://api.bandcamp.com/api/track/3/info';
 use constant API_URL_URL   => 'http://api.bandcamp.com/api/url/1/info';
 use constant API_URL_SALES => 'http://bandcamp.com/cb_homepage_feed';
 use constant CACHE_TTL     => 3600 * 12;
