@@ -1,7 +1,7 @@
 [% PROCESS settings/header.html %]
 
 	[% WRAPPER setting title="PLUGIN_BANDCAMP_USERNAME" desc="PLUGIN_BANDCAMP_USERNAME_DESC" %]
-		<input type="text" name="pref_username" value="[% prefs.username %]">
+		<input type="text" name="pref_username" value="[% prefs.username == '_bandcamp_' ? '' : prefs.username %]">
 	[% END %]
 
 [% PROCESS settings/footer.html %]
