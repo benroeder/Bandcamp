@@ -16,6 +16,10 @@ PLUGIN_BANDCAMP_FAN_FOLLOWING
 	DE	%s beobachtet...
 	EN	%s is following...
 
+PLUGIN_BANDCAMP_FAN_MISSING
+	DE	Bitte geben Sie im Logitech Media Server unter Einstellungen/Erweitert/Band's Campout ihren bandcamp.com Benutzernamen ein.
+	EN	Please enter your basecamp.com username in Settings/Advanced/Band's Campout in Logitech Media Server.
+
 PLUGIN_BANDCAMP_TOPSELLERS
 	DE	Top verkaufte Alben
 	EN	Top sellers of late
@@ -96,3 +100,11 @@ PLUGIN_BANDCAMP_STAFF_PICKS
 	PL	Wybór pracowników
 	RU	Наш выбор
 	SV	Våra favoriter
+
+PLUGIN_BANDCAMP_USERNAME
+	DE	bandcamp.com Benutzername
+	EN	bandcamp.com Username
+
+PLUGIN_BANDCAMP_USERNAME_DESC
+	DE	Bitte geben Sie den Benutzernamen ihrer Fan-Seite auf bandcamp.com an.
+	EN	Please enter your bandcamp.com fan page username.

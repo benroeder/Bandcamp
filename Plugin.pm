@@ -9,6 +9,7 @@ use Slim::Formats::RemoteMetadata;
 use Slim::Menu::GlobalSearch;
 use Slim::Menu::TrackInfo;
 use Slim::Utils::Log;
+use Slim::Utils::Prefs;
 use Slim::Utils::Strings qw(string cstring);
 
 use Plugins::Bandcamp::API;
@@ -20,6 +21,8 @@ my $log = Slim::Utils::Log->addLogCategory( {
 	defaultLevel => 'ERROR',
 	description  => 'PLUGIN_BANDCAMP',
 } );
+
+my $prefs = preferences('plugin.bandcamp');
 
 use constant PLUGIN_TAG       => 'bandcamp';
 use constant STREAM_URL_REGEX => qr/(?:bcbits|bandcamp)\.com\/download\/track/i;
@@ -36,6 +39,14 @@ my $does_scrobble;
 
 sub initPlugin {
 	my $class = shift;
+	
+	if (my $username = $prefs->get('username')) {
+		$prefs->set('username', '') if $username eq '_bandcamp_';
+	}
+	
+	$prefs->init({
+		username => '_bandcamp_'
+	});
 
 	Plugins::Bandcamp::API::init( $cache, $class->_pluginDataFor('dk') );	
 	Plugins::Bandcamp::Scraper::init( $cache );	
@@ -92,6 +103,11 @@ sub initPlugin {
 	} sort { 
 		$recent_plays->{$a}->{ts} <=> $recent_plays->{$a}->{ts} 
 	} keys %$recent_plays;
+
+	if (main::WEBUI) {
+		require Plugins::Bandcamp::Settings;
+		Plugins::Bandcamp::Settings->new();
+	}
 }
 
 sub getDisplayName { 'PLUGIN_BANDCAMP' }
@@ -105,62 +121,78 @@ sub handleFeed {
 	
 	my $params = $args->{params};
 	
+	my $items = [
+		{
+			name => cstring($client, 'PLUGIN_BANDCAMP_TOPSELLERS'),
+			type => 'link',
+			url  => \&get_top_sellers,
+		},
+#		{
+#			name => cstring($client, 'PLUGIN_BANDCAMP_FEATURED_ALBUM'),
+#			type => 'link',
+#			url  => \&get_featured_album,
+#		},
+		{
+			name => cstring($client, 'PLUGIN_BANDCAMP_STAFF_PICKS'),
+			type => 'link',
+			url  => \&get_staff_picks,
+		},
+		{
+			name => cstring($client, 'PLUGIN_BANDCAMP_SELLING'),
+			type => 'link',
+			url  => \&get_selling_items,
+		},
+		{
+			name  => cstring($client, 'PLUGIN_BANDCAMP_RECENTLY_PLAYED'),
+			type => 'link',
+			url  => \&recently_played,
+		},
+		{
+			name => cstring($client, 'GENRES'),
+			type => 'link',
+			url  => \&get_tags,
+		},
+		{
+			name => cstring($client, 'PLUGIN_BANDCAMP_LOCATIONS'),
+			type => 'link',
+			url  => \&get_locations,
+		},
+		{
+			name  => cstring($client, 'SEARCH'),
+			type => 'search',
+			url  => \&Plugins::Bandcamp::Search::search
+		},
+		{
+			name => cstring($client, 'RECENT_SEARCHES'),
+			type => 'link',
+			url  => \&Plugins::Bandcamp::Search::recent_searches,
+		}
+	];
+	
+	my $username = $prefs->get('username');
+	
+	if ($username eq '_bandcamp_') {
+		unshift @$items, {
+			name => cstring($client, 'PLUGIN_BANDCAMP_FANPAGE'),
+			items => [{
+				name => $client->string('PLUGIN_BANDCAMP_FAN_MISSING'),
+				type => 'textarea',
+			}]
+		};
+	}
+	elsif ($username) {
+		unshift @$items, {
+			name => cstring($client, 'PLUGIN_BANDCAMP_FANPAGE'),
+			type => 'link',
+			url  => \&get_fan_page,
+			passthrough => [{
+				fan => $username
+			}],
+		};
+	}
+	
 	$cb->({
-		items => [
-			{
-				name => cstring($client, 'PLUGIN_BANDCAMP_FANPAGE'),
-				type => 'link',
-				url  => \&get_fan_page,
-				passthrough => [{
-					fan => 'michaelherger'
-				}],
-			},
-			{
-				name => cstring($client, 'PLUGIN_BANDCAMP_TOPSELLERS'),
-				type => 'link',
-				url  => \&get_top_sellers,
-			},
-#			{
-#				name => cstring($client, 'PLUGIN_BANDCAMP_FEATURED_ALBUM'),
-#				type => 'link',
-#				url  => \&get_featured_album,
-#			},
-			{
-				name => cstring($client, 'PLUGIN_BANDCAMP_STAFF_PICKS'),
-				type => 'link',
-				url  => \&get_staff_picks,
-			},
-			{
-				name => cstring($client, 'PLUGIN_BANDCAMP_SELLING'),
-				type => 'link',
-				url  => \&get_selling_items,
-			},
-			{
-				name  => cstring($client, 'PLUGIN_BANDCAMP_RECENTLY_PLAYED'),
-				type => 'link',
-				url  => \&recently_played,
-			},
-			{
-				name => cstring($client, 'GENRES'),
-				type => 'link',
-				url  => \&get_tags,
-			},
-			{
-				name => cstring($client, 'PLUGIN_BANDCAMP_LOCATIONS'),
-				type => 'link',
-				url  => \&get_locations,
-			},
-			{
-				name  => cstring($client, 'SEARCH'),
-				type => 'search',
-				url  => \&Plugins::Bandcamp::Search::search
-			},
-			{
-				name => cstring($client, 'RECENT_SEARCHES'),
-				type => 'link',
-				url  => \&Plugins::Bandcamp::Search::recent_searches,
-			}
-		],
+		items => $items,
 	});
 }
 
@@ -527,7 +559,7 @@ sub _does_scrobble {
 	if ( !defined $does_scrobble ) {
 		$does_scrobble = 0;
 		eval {
-			$does_scrobble = Slim::Utils::Prefs::preferences('plugin.audioscrobbler')->get('enable_scrobbling') && Slim::Plugin::AudioScrobbler::Plugin->condition();
+			$does_scrobble = preferences('plugin.audioscrobbler')->get('enable_scrobbling') && Slim::Plugin::AudioScrobbler::Plugin->condition();
 		};
 	}
 	
@@ -538,7 +570,7 @@ sub _does_scrobble {
 	
 	return $_does_scrobble if defined $_does_scrobble;
 	
-	$_does_scrobble = Slim::Utils::Prefs::preferences('plugin.audioscrobbler')->client($client)->get('account');
+	$_does_scrobble = preferences('plugin.audioscrobbler')->client($client)->get('account');
 	
 	$client->pluginData( 'does_scrobble' => ($_does_scrobble ? 1 : 0) );
 	
