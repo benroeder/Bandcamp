@@ -5,6 +5,17 @@ PLUGIN_BANDCAMP_FEATURED_ALBUM
 	DE	Album der Woche
 	EN	Album of the Week
 
+PLUGIN_BANDCAMP_FAN
+	EN	Fan
+
+PLUGIN_BANDCAMP_FANPAGE
+	DE	Meine Sammlung
+	EN	My Collection
+
+PLUGIN_BANDCAMP_FAN_FOLLOWING
+	DE	%s beobachtet...
+	EN	%s is following...
+
 PLUGIN_BANDCAMP_TOPSELLERS
 	DE	Top verkaufte Alben
 	EN	Top sellers of late

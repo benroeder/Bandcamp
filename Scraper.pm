@@ -7,6 +7,7 @@ use lib catdir($Bin, 'Plugins', 'Bandcamp', 'lib');
 
 use Encode;
 use HTML::TreeBuilder;
+use JSON::XS::VersionOneAndTwo;
 
 use Scalar::Util qw(blessed);
 
@@ -19,6 +20,7 @@ use constant BASE_URL      => 'http://bandcamp.com/';
 use constant TAGS_BASE_URL => BASE_URL . 'tags/';
 use constant TAG_BASE_URL  => BASE_URL . 'tag/';
 use constant CACHE_TTL     => 3600 * 12;
+use constant USER_CACHE_TTL=> 60 * 5;
 
 my $log = logger('plugin.bandcamp');
 
@@ -44,6 +46,162 @@ sub search_tags {
 		{
 			tag_url => TAG_BASE_URL . $search
 		}
+	);
+}
+
+sub get_fan_page {
+	my ( $client, $cb, $params, $args ) = @_;
+	
+	my $fan = $args->{fan} || '';
+	
+	main::DEBUGLOG && $log->debug("Getting fan page for: $fan");
+	
+	my $cache_key = "fanpage/$fan";
+
+	_get($client,
+		sub {
+			$cb->({
+				discography => shift
+			});
+		},
+		sub {
+			my $tree   = shift;
+			my $result = [];
+
+			# try to read the JSON data in the file
+			if ($tree->as_HTML =~ /item_details:.*?(\{.*?})\s*?\};/si) {
+
+				my $collection = eval { from_json($1) };
+				
+				if ($@) {
+					$log->warn("Failed to parse JSON - falling back to HTML: $@");
+				}
+				elsif ($collection && ref $collection eq 'HASH') {
+					foreach (values %$collection) {
+						my $item = {
+							title => $_->{item_title} || $_->{featured_track_title},
+							artist => $_->{band_name},
+							url   => $_->{item_url},
+							large_art_url => $_->{item_art_url},
+						};
+						
+						push @$result, $item if ($item->{title} || $item->{artist}) && $item->{url}; 
+					}
+				}
+			}
+
+			# if the JSON data failed, parse the HTML (which would miss the wishlist)
+			if (!@$result) {
+				my @item_list = $tree->look_down("_tag", "div", "class", "collection-item-gallery-container");
+
+				foreach (@item_list) {
+
+					next unless $_->content_list;
+					
+					my $img = $_->find('img')->attr('src');
+					my $url = $_->look_down('_tag', 'a', 'class', 'item-link')->attr('href');
+					
+					my $title = $_->find_by_attribute('class', 'collection-item-title');
+					$title = $title->content if $title;
+					$title = ref $title eq 'ARRAY' ? $title->[0] : undef;
+	
+					my $artist = $_->find_by_attribute('class', 'collection-item-artist');
+					$artist = $artist->content if $artist;
+					$artist = ref $artist eq 'ARRAY' ? $artist->[0] : undef;
+					$artist =~ s/by // if $artist;
+	
+					next unless ($title || $artist) && $url;
+					
+					push @$result, {
+						title  => $title,
+						artist => $artist,
+						large_art_url => $img,
+						url    => $url,
+					}
+				}
+			}
+			
+			@$result = sort { uc($a->{title}) cmp uc($b->{title}) } @$result if @$result;
+			
+			$cache->set( $cache_key, $result, USER_CACHE_TTL ) if @$result && _shall_cache($params);
+			
+			return $result;
+		},
+		$params,
+		$cache_key,
+		BASE_URL . $fan
+	);
+}
+
+sub get_fan_following {
+	my ( $client, $cb, $params, $args ) = @_;
+	
+	my $fan = $args->{fan} || '';
+	
+	main::DEBUGLOG && $log->debug("Getting fan following page for: $fan");
+
+	my $cache_key = "fanpage/$fan/following";
+
+	_get($client,
+		sub {
+			$cb->({
+				results => shift
+			});
+		},
+		sub {
+			my $tree   = shift;
+			my $result = [];
+
+			my @item_list = $tree->look_down("_tag", "li", "class", "follow-grid-item");
+
+			foreach (@item_list) {
+				my $img = $_->look_down('_tag', 'img', 'class', 'lazy')->attr('data-original');
+				
+				if ( my $artist = $_->find_by_attribute('class', 'band-name') ) {
+					$artist = $artist->look_down('_tag', 'a');
+					
+					next unless $artist;
+					
+					$artist = $artist->content;
+					$artist = ref $artist eq 'ARRAY' ? $artist->[0] : undef;
+	
+					my ($id) = $_->id =~ /(\d+)$/;
+	
+					next unless $artist && $id;
+	
+					push @$result, {
+						name => $artist,
+						large_art_url => $img,
+						band_id => $id,
+					}
+				}
+				elsif ( my $fan = $_->find_by_attribute('class', 'fan-name') ) {
+					$fan = $fan->look_down('_tag', 'a');
+
+					next unless $fan;
+					
+					my ($id) = $fan->attr('href') =~ m|([^/]+)$|s;
+					
+					$fan = $fan->content;
+					$fan = ref $fan eq 'ARRAY' ? $fan->[0] : undef;
+
+					next unless $fan && $id;
+	
+					push @$result, {
+						name => $fan,
+						large_art_url => $img,
+						fan => $id,
+					}
+				}
+			}
+			
+			$cache->set( $cache_key, $result, USER_CACHE_TTL ) if @$result && _shall_cache($params);
+
+			return $result;
+		},
+		$params,
+		$cache_key,
+		BASE_URL . $fan . '/following',
 	);
 }
 
@@ -334,7 +492,7 @@ sub get_tag_items {
 sub _get {
 	my ($client, $cb, $parseCB, $params, $tag, $url) = @_;
 
-	if (my $cached = $cache->get($tag)) {
+	if ( $tag && (my $cached = $cache->get($tag)) ) {
 		main::DEBUGLOG && $log->debug("found cached value for '$tag': " . Data::Dump::dump($cached));
 		$cb->( $cached );
 		return;
@@ -381,6 +539,11 @@ sub _get {
 			timeout => 30,
 		},
 	)->get($url);
+}
+
+sub _shall_cache {
+	my $params = shift;
+	return ( ($params->{isControl} && $params->{index}) || ($params->{isWeb} && defined $params->{index}) ) ? 1 : 0;
 }
 
 1;

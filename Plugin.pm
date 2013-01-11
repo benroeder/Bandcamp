@@ -108,6 +108,14 @@ sub handleFeed {
 	$cb->({
 		items => [
 			{
+				name => cstring($client, 'PLUGIN_BANDCAMP_FANPAGE'),
+				type => 'link',
+				url  => \&get_fan_page,
+				passthrough => [{
+					fan => 'michaelherger'
+				}],
+			},
+			{
 				name => cstring($client, 'PLUGIN_BANDCAMP_TOPSELLERS'),
 				type => 'link',
 				url  => \&get_top_sellers,
@@ -154,6 +162,43 @@ sub handleFeed {
 			}
 		],
 	});
+}
+
+sub get_fan_page {
+	my ($client, $cb, $params, $args) = @_;
+
+	Plugins::Bandcamp::Scraper::get_fan_page($client,
+		sub {
+			my $items = shift;
+			$items = album_list($client, \&get_item_info_by_url, $items);
+			
+			# add "Follows" item
+			push @$items, {
+				name  => cstring($client, 'PLUGIN_BANDCAMP_FAN_FOLLOWING', $args->{fan}),
+				type  => 'link',
+				url   => \&get_fan_following,
+				image => __PACKAGE__->_pluginDataFor('icon'),
+				passthrough => [ $args ],
+			};
+			
+			$cb->( $items );
+		},
+		$params,
+		$args,
+	);
+}
+
+sub get_fan_following {
+	my ($client, $cb, $params, $args) = @_;
+
+	Plugins::Bandcamp::Scraper::get_fan_following($client,
+		sub {
+			my $items = shift;
+			$cb->( artist_list($items) );
+		},
+		$params,
+		$args,
+	);
 }
 
 sub get_top_sellers {
@@ -537,14 +582,20 @@ sub artist_list {
 	
 	my $artists = [];
 	foreach (@{$items->{results}}) {
+		my $name = $_->{name};
+		
+		$name .= ' (' . string('PLUGIN_BANDCAMP_FAN') . ')' if $_->{fan};
+		
 		push @$artists, {
-			name  => $_->{name},
-			line1 => $_->{offsite_url} ? $_->{name} : undef,
+			name  => $name,
+			line1 => $_->{offsite_url} ? $name : undef,
 			line2 => $_->{offsite_url} || undef,
-			url   => \&get_artist_albums,
+			url   => $_->{band_id} ? \&get_artist_albums : \&get_fan_page,
 			passthrough => [{
 				band_id => $_->{band_id},
+				fan     => $_->{fan},
 			}],
+			image => $_->{large_art_url},
 			type  => 'link',
 		}
 	}
