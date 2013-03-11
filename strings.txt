@@ -108,3 +108,7 @@ PLUGIN_BANDCAMP_USERNAME
 PLUGIN_BANDCAMP_USERNAME_DESC
 	DE	Bitte geben Sie den Benutzernamen ihrer Fan-Seite auf bandcamp.com an.
 	EN	Please enter your bandcamp.com fan page username.
+
+PLUGIN_BANDCAMP_NOT_STREAMABLE
+	DE	* Tracks können nicht wiedergegeben werden
+	EN	* Track is not available for streaming

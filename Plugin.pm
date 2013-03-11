@@ -438,6 +438,14 @@ sub get_album {
 					wrap => 1,
 				}]
 			} if $albumInfo->{credits};
+
+			# tell the user when there are tracks which can't be played
+			if ( grep { !$_->{streaming_url} } @{$albumInfo->{tracks}} ) {
+				push @$items, {
+					name => cstring($client, 'PLUGIN_BANDCAMP_NOT_STREAMABLE'),
+					type => 'text',
+				}
+			}
 			
 			push @$items, @{ track_list($client, $albumInfo) };
 			
@@ -664,7 +672,7 @@ sub album_list {
 	} ] if $items->{error};
 	
 	my $albums = [];
-	foreach (@{$items->{discography}}) {
+	foreach (sort { lc($a->{title} || $a->{album}) cmp lc($b->{title} || $b->{album}) } @{$items->{discography}}) {
 		next unless ref $_ eq 'HASH';
 		
 		my $type = 'playlist';
@@ -785,11 +793,11 @@ sub track_list {
 
 		push @$tracks, {
 #			type  => 'link',
-			name  => (defined $track->{number} ? $track->{number} . '. ' : '') . $track->{title},
+			name  => ($track->{streaming_url} ? '' : '* ') . (defined $track->{number} ? $track->{number} . '. ' : '') . $track->{title},
 			play  => $track->{streaming_url},
 			#image => $track->{large_art_url},
 			items => $trackinfo,
-			on_select   => 'play',
+			on_select   => $track->{streaming_url} ? 'play' : undef,
 			playall     => 1,
 			passthrough => [{
 				track_id => $track->{track_id}
