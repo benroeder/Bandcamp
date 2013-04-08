@@ -52,7 +52,16 @@ sub get_artist_albums {
 	main::DEBUGLOG && $log->debug("Getting albums for artist: $band_id");
 	
 	_get(
-		$cb, 
+		sub {
+			my $items = shift;
+
+			# keep track information in the cache
+			foreach my $item (@{$items->{discography}}) {
+				$cache->set('small_' . $item->{large_art_url}, $item->{small_art_url}, META_CACHE_TTL);
+			}
+			
+			$cb->($items) if $cb;
+		}, 
 		$params, 
 		{
 			_url    => API_URL_BAND . 'discography',
@@ -213,6 +222,10 @@ sub cache_track_info {
 			foreach (keys %$cached) {
 				$track->{$_} ||= $cached->{$_}; 
 			}
+		}
+		
+		if ( ($track->{large_art_url} || $album->{large_art_url}) && (my $small = $track->{small_art_url} || $album->{small_art_url}) ) {
+			$cache->set('small_' . $track->{image}, $small, META_CACHE_TTL);
 		}
 			
 		# xxx - track api is broken, returning relative URLs; get domain name from album url
