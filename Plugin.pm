@@ -126,7 +126,7 @@ sub initPlugin {
 		main::DEBUGLOG && $log->debug("Successfully registered image proxy for Bandcamp artwork");
 
 		}
-	};
+	} if $prefs->get('useLocalImageproxy');
 
 	if (main::WEBUI) {
 		require Plugins::Bandcamp::Settings;
