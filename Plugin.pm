@@ -109,7 +109,7 @@ sub initPlugin {
 		require Slim::Web::ImageProxy;
 		
 		# XXX - some might not have updated their 7.8 yet...
-		return unless UNIVERSAL::can('Slim::Web::ImageProxy', 'getRightSize');
+		if ( UNIVERSAL::can('Slim::Web::ImageProxy', 'getRightSize') ) {
 		
 		Slim::Web::ImageProxy->registerHandler(
 			match => qr/f0\.bcbits\.com\/z\//,
@@ -124,6 +124,8 @@ sub initPlugin {
 			},
 		);
 		main::DEBUGLOG && $log->debug("Successfully registered image proxy for Bandcamp artwork");
+
+		}
 	};
 
 	if (main::WEBUI) {
