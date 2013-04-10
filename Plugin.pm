@@ -116,9 +116,8 @@ sub initPlugin {
 			func  => sub {
 				my ($url, $spec) = @_;
 	
-				if ( my $size = Slim::Web::ImageProxy->getRightSize($spec, { 100  => 's' }) ) {
-					$url = $cache->get("small_$url") || $url;
-				}
+				my $size = Slim::Web::ImageProxy->getRightSize($spec, { 100 => 'small_', 350 => '' }) || 'full_';
+				$url = $cache->get("$size$url") || $url;
 				
 				return $url;
 			},
@@ -126,8 +125,8 @@ sub initPlugin {
 		main::DEBUGLOG && $log->debug("Successfully registered image proxy for Bandcamp artwork");
 
 		}
-	} if $prefs->get('useLocalImageproxy');
-
+	} if preferences('server')->get('useLocalImageproxy');
+	
 	if (main::WEBUI) {
 		require Plugins::Bandcamp::Settings;
 		Plugins::Bandcamp::Settings->new();
@@ -320,7 +319,7 @@ sub get_selling_items {
 	# odd hack to only cache results when entering the menu, but not when drilling down from there
 	$params->{use_cache} = ( ($params->{isControl} && $params->{index}) || ($params->{isWeb} && defined $params->{index}) ) ? 1 : 0;
 	
-	Plugins::Bandcamp::API::get_sales_feed($client,
+	Plugins::Bandcamp::Scraper::get_sales_feed($client,
 		sub {
 			my $items = shift;
 			$cb->( album_list($client, \&get_item_info_by_url, {

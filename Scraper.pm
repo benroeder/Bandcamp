@@ -19,7 +19,11 @@ use Plugins::Bandcamp::API;
 use constant BASE_URL      => 'http://bandcamp.com/';
 use constant TAGS_BASE_URL => BASE_URL . 'tags/';
 use constant TAG_BASE_URL  => BASE_URL . 'tag/';
+use constant DISCOVERY_URL => BASE_URL . 'discover_cb';
+use constant API_URL_SALES => BASE_URL . 'cb_homepage_feed';
+
 use constant CACHE_TTL     => 3600 * 12;
+use constant META_CACHE_TTL=> 86400 * 30;
 use constant USER_CACHE_TTL=> 60 * 5;
 
 my $log = logger('plugin.bandcamp');
@@ -208,108 +212,26 @@ sub get_fan_following {
 sub get_top_sellers {
 	my ( $client, $cb, $params ) = @_;
 
-	_get($client,
+	_get_discovery( $client, 
 		sub {
 			$cb->({
 				discography => shift
-			});
+			}) if $cb;
 		},
-		sub {
-			my $tree   = shift;
-			my $result = [];
-
-			my $results = $tree->look_down("_tag", "div", "class", "top-sellers");
-			
-			if ($results) {
-				my $item_list = $results->look_down("_tag", "ul", "class", "list");
-
-				foreach ($item_list->content_list) {
-
-					my $img = $_->find('img')->attr('src');
-					my $url = $_->find('a')->attr('href'); 
-					$url =~ s/\?from=topsellers$//;
-					 
-					my $title = $_->find_by_attribute('class', 'album-name');
-					$title = $title->find('a')->content if $title;
-					$title = ref $title eq 'ARRAY' ? $title->[0] : undef;
-					
-					my $artist = $_->find_by_attribute('class', 'album-artist');
-					$artist = $artist->find('a')->content if $artist;
-					$artist = ref $artist eq 'ARRAY' ? $artist->[0] : undef;
-					
-					next unless ($title || $artist) && $url;
-					
-					push @$result, {
-						title  => $title,
-						artist => $artist,
-						large_art_url => $img,
-						url    => $url,
-					}
-				} 
-
-				$cache->set( 'top_sellers', $result, CACHE_TTL );
-			}
-			
-			return $result;
-		},
-		$params,
-		'top_sellers',
-		BASE_URL
+		'top',
 	);
 }
 
 sub get_staff_picks {
 	my ( $client, $cb, $params ) = @_;
 
-	_get($client,
+	_get_discovery( $client,
 		sub {
 			$cb->({
 				discography => shift
-			});
+			}) if $cb;
 		},
-		sub {
-			my $tree   = shift;
-			my $result = [];
-
-			my $results = $tree->look_down("_tag", "div", "class", "hp-staff-picks");
-
-			if ($results) {
-				my $item_list = $results->look_down("_tag", "ul");
-
-				foreach ($item_list->content_list) {
-
-					my $img = $_->find('img')->attr('src');
-					my $url = $_->find('a')->attr('href'); 
-					$url =~ s/\?.*from=staffpicks$//;
-					 
-					my $title = $_->find_by_attribute('class', 'album-name-artist');
-					$title = $title->find('a')->content if $title;
-					$title = ref $title eq 'ARRAY' ? $title->[0] : undef;
-					$title =~ s/\s*$// if $title;
-					
-					my $artist = $_->find_by_attribute('class', 'nb');
-					$artist = $artist->content if $artist;
-					$artist = ref $artist eq 'ARRAY' ? $artist->[0] : undef;
-					$artist =~ s/^by // if $artist;
-					
-					next unless ($title || $artist) && $url;
-					
-					push @$result, {
-						title  => $title,
-						artist => $artist,
-						large_art_url => $img,
-						url    => $url,
-					}
-				} 
-
-				$cache->set( 'staff_picks', $result, CACHE_TTL );
-			}
-			
-			return $result;
-		},
-		$params,
-		'staff_picks',
-		BASE_URL
+		'pic',
 	);
 }
 
@@ -489,6 +411,133 @@ sub get_tag_items {
 	);
 }
 
+sub get_sales_feed {
+	my ($client, $cb, $params) = @_;
+	
+	main::DEBUGLOG && $log->debug("Getting sales feed");
+	
+	if ( $params->{use_cache} && (my $cached = $cache->get('sales_feed_' . $client->id)) ) {
+		main::DEBUGLOG && $log->debug('found cached api response' . Data::Dump::dump($cached));
+		$cb->($cached) if $cb;
+		return;
+	}
+	
+	_get($client,
+		sub {
+			my $items = shift;
+
+			my @albums;
+			my %seen;
+	warn Data::Dump::dump($items);
+			foreach my $event (reverse @{$items->{events}}) {
+				next unless $event->{event_type} && $event->{event_type} eq 'sale';
+				
+				foreach ( reverse @{$event->{items}} ) {
+					# we only want packages with artwork, albums and tracks
+					next unless $_->{item_type} && $_->{item_type} =~ /^[atp]$/ && $_->{art_url};
+					
+					my $meta = {
+						artist => $_->{artist_name},
+						title  => $_->{item_description},
+						small_art_url => $_->{art_url},
+						url    => $_->{band_url} . ($_->{item_slug} || $_->{album_slug}),
+					};
+					
+					if ($_->{item_type} eq 't') {
+						Plugins::Bandcamp::API::get_item_info_by_url($client,
+							sub {
+								my ($items) = shift;
+			
+								if ($items->{track_id}) {
+									Plugins::Bandcamp::API::get_track_info($items);
+								}
+							}, 
+							$params,
+							$meta,
+						);
+					}
+
+					$meta->{url} = $_->{band_url} . ($_->{album_slug} || $_->{item_slug});
+					
+					next if $seen{$meta->{url}};
+					
+					$seen{$meta->{url}} = 1;
+					
+					push @albums, $meta;
+				}
+			}
+			
+			$cache->set('sales_feed_' . $client->id, \@albums, CACHE_TTL * 5);
+
+			$cb->(\@albums) if $cb;
+		}, 
+		undef,
+		$params,
+		undef,
+		API_URL_SALES . '?start_date=' . (time() - 600),
+	);
+}
+
+sub _get_discovery {
+	my ( $client, $cb, $category, $nocache ) = @_;
+	
+	if ( !$nocache && (my $cached = $cache->get($category . $client->id)) ) {
+		$cb->($cached);
+		return;
+	}
+	
+	_get(undef, 
+		sub {
+			my $data = shift;
+			
+			my $items = [];
+			
+			foreach (sort keys %{$data->{discover_payload}}) {
+				next unless /s=$category\b/;
+				
+				my $item = eval { from_json( Encode::encode( 'utf8', $data->{discover_payload}->{$_}) ) };
+				
+				if ($@) {
+					$log->error("Problem parsing JSON data: $@");
+				}
+				else {
+					foreach ( @{$item->{items}} ) {
+						next unless $_->{category} && $_->{category} eq $category;
+
+						push @$items, {
+							title         => $_->{primary_text},
+							artist        => $_->{secondary_text},
+							band_id       => $_->{band_id},
+							large_art_url => $_->{large_art} || $_->{art} || $_->{full_art},
+							url           => $_->{url},
+						};
+
+						# small artwork version
+						if ( $_->{large_art} && $_->{art} && $_->{large_art} ne $_->{art} ) {
+							$cache->set('small_' . $_->{large_art}, $_->{art}, META_CACHE_TTL);
+						}
+
+						# full size artwork
+						if ( $_->{full_art} && $_->{large_art} && $_->{full_art} ne $_->{large_art} ) {
+							$cache->set('full_' . $_->{large_art}, $_->{full_art}, META_CACHE_TTL);
+						}
+					}
+				}
+			}
+			
+			if ( !$nocache && scalar @$items ) {
+				$cache->set($category . $client->id, $items, CACHE_TTL);
+			}
+			
+			$cb->($items) if $cb;
+		}, 
+		undef,
+		undef,
+		undef,
+		DISCOVERY_URL . '?s=' . $category
+	);
+}
+
 sub _get {
 	my ($client, $cb, $parseCB, $params, $tag, $url) = @_;
 
@@ -504,6 +553,7 @@ sub _get {
 			my $params   = $response->params('params');
 			
 			my $result;
+			my $error;
 
 			if ( $response->headers->content_type =~ /html/ ) {
 				my $tree = HTML::TreeBuilder->new;
@@ -515,11 +565,15 @@ sub _get {
 					$result = [];
 				}
 			}
-			else {
-				$log->error("Invalid data");
-				$result = { 
-					error => 'Error: Invalid data',
-				};
+			elsif ( $response->headers->content_type =~ /json/ ) {
+				$result = decode_json(
+					$response->content,
+				);
+			}
+			
+			if (!$result) {
+				$result = [ 'Error: Invalid data' ];
+				$log->error($result->[0]);
 			}
 
 			main::DEBUGLOG && $log->debug(Data::Dump::dump($result));

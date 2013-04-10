@@ -12,7 +12,6 @@ use constant API_URL_ALBUM => 'http://api.bandcamp.com/api/album/2/info';
 use constant API_URL_BAND  => 'http://api.bandcamp.com/api/band/3/';
 use constant API_URL_TRACK => 'http://api.bandcamp.com/api/track/3/info';
 use constant API_URL_URL   => 'http://api.bandcamp.com/api/url/1/info';
-use constant API_URL_SALES => 'http://bandcamp.com/cb_homepage_feed';
 use constant CACHE_TTL     => 3600 * 12;
 use constant META_CACHE_TTL=> 86400 * 30;
 
@@ -131,75 +130,6 @@ sub get_track_info {
 		{
 			_url     => API_URL_TRACK,
 			track_id => $track_id,
-		}
-	);
-}
-
-sub get_sales_feed {
-	my ($client, $cb, $params) = @_;
-	
-	main::DEBUGLOG && $log->debug("Getting sales feed");
-	
-	if ( $params->{use_cache} && (my $cached = $cache->get('sales_feed_' . $client->id)) ) {
-		main::DEBUGLOG && $log->debug('found cached api response' . Data::Dump::dump($cached));
-		$cb->($cached) if $cb;
-		return;
-	}
-	
-	_get(
-		sub {
-			my $items = shift;
-
-			my @albums;
-			my %seen;
-			foreach my $event (reverse @{$items->{events}}) {
-				next unless $event->{event_type} && $event->{event_type} eq 'sale';
-				
-				foreach ( reverse @{$event->{items}} ) {
-					# we only want packages with artwork, albums and tracks
-					next unless $_->{item_type} && $_->{item_type} =~ /^[atp]$/ && $_->{art_url};
-					
-					my $meta = {
-						artist => $_->{artist_name},
-						title  => $_->{item_description},
-						small_art_url => $_->{art_url},
-						url    => $_->{band_url} . ($_->{item_slug} || $_->{album_slug}),
-					};
-					
-					if ($_->{item_type} eq 't') {
-						get_item_info_by_url($client,
-							sub {
-								my ($items) = shift;
-			
-								if ($items->{track_id}) {
-									get_track_info($items);
-								}
-							}, 
-							$params,
-							$meta,
-						);
-					}
-
-					$meta->{url} = $_->{band_url} . ($_->{album_slug} || $_->{item_slug});
-					
-					next if $seen{$meta->{url}};
-					
-					$seen{$meta->{url}} = 1;
-					
-					push @albums, $meta;
-				}
-			}
-			
-			$cache->set('sales_feed_' . $client->id, \@albums, CACHE_TTL * 5);
-
-			$cb->(\@albums) if $cb;
-		}, 
-		undef, 
-		{
-			_url       => API_URL_SALES,
-			_nocache   => 1,		# sales update every minute
-			_nokey     => 1,
-			start_date => time() - 600,
 		}
 	);
 }
