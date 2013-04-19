@@ -26,6 +26,7 @@ my $prefs = preferences('plugin.bandcamp');
 
 use constant PLUGIN_TAG       => 'bandcamp';
 use constant STREAM_URL_REGEX => qr/(?:bcbits|bandcamp)\.com\/download\/track/i;
+use constant IMAGES_URL_REGEX => qr/f0\.bcbits\.com\/z\//;
 use constant CACHE_TTL        => 3600 * 12;
 use constant MAX_RECENT_ITEMS => 50;
 use constant RECENT_CACHE_TTL => 'never';
@@ -112,7 +113,7 @@ sub initPlugin {
 		if ( UNIVERSAL::can('Slim::Web::ImageProxy', 'getRightSize') ) {
 		
 		Slim::Web::ImageProxy->registerHandler(
-			match => qr/f0\.bcbits\.com\/z\//,
+			match => IMAGES_URL_REGEX,
 			func  => sub {
 				my ($url, $spec) = @_;
 	
@@ -146,15 +147,15 @@ sub handleFeed {
 	
 	my $items = [
 		{
+			name => cstring($client, 'PLUGIN_BANDCAMP_WEEKLY'),
+			type => 'link',
+			url  => \&get_weekly_shows,
+		},
+		{
 			name => cstring($client, 'PLUGIN_BANDCAMP_TOPSELLERS'),
 			type => 'link',
 			url  => \&get_top_sellers,
 		},
-#		{
-#			name => cstring($client, 'PLUGIN_BANDCAMP_FEATURED_ALBUM'),
-#			type => 'link',
-#			url  => \&get_featured_album,
-#		},
 		{
 			name => cstring($client, 'PLUGIN_BANDCAMP_STAFF_PICKS'),
 			type => 'link',
@@ -268,34 +269,38 @@ sub get_top_sellers {
 	);
 }
 
-sub get_featured_album {
+sub get_weekly_shows {
 	my ($client, $cb, $params) = @_;
 
-	Plugins::Bandcamp::Scraper::get_featured_album($client,
+	Plugins::Bandcamp::Scraper::get_weekly_shows($client,
 		sub {
 			my $items = shift;
-			
-			my $item   = $items->[0];
 
-			my $result = album_list($client, \&get_item_info_by_url, {
-				discography => [ $item ]
-			});
+			my $shows = [];
 
-			push @$result, {
-				name => cstring($client, 'PLUGIN_BANDCAMP_REVIEW'),
-				items => [{
-					name => _cleanup_multiline($item->{review}),
-					type => 'text',
-					wrap => 1,
-				}]
-			} if $item->{review};
-			
-			push @$result, {
-				name => $item->{header},
-				type => 'text',
-			} if $item->{header};
+			foreach my $show (@$items) {
+				my $tracks = track_list($client, $show, {
+					no_tracknumber => 1,
+					artwork        => 1,
+					artist         => 1,
+				});
+				
+				push @$shows, {
+					name => $show->{date} . ' - ' . $show->{subtitle},
+					image => $show->{large_art_url},
+					items => [{
+						name => $show->{description},
+						type => 'textarea'
+					},{
+						type => 'playlist',
+						name => cstring($client, 'TRACKS'),
+						items => $tracks,
+						play  => $tracks,
+					}]
+				};
+			}
 
-			$cb->( $result );
+			$cb->( $shows );
 		},
 		$params,
 	);
@@ -737,7 +742,7 @@ sub album_list {
 }
 
 sub track_list {
-	my ($client, $items) = @_;
+	my ($client, $items, $args) = @_;
 
 	my $tracks = [];
 	foreach my $track (@{$items->{tracks}}) {
@@ -814,11 +819,14 @@ sub track_list {
 			type => 'text',
 		} if $track->{duration};
 
+		my $title = ($track->{streaming_url} ? '' : '* ') . ((defined $track->{number} && !$args->{no_tracknumber}) ? $track->{number} . '. ' : '') . $track->{title};
 		push @$tracks, {
 #			type  => 'link',
-			name  => ($track->{streaming_url} ? '' : '* ') . (defined $track->{number} ? $track->{number} . '. ' : '') . $track->{title},
+			name  => $title,
+			line1 => $args->{artist} && $title,
+			line2 => $args->{artist} && $track->{artist},
 			play  => $track->{streaming_url},
-			#image => $track->{large_art_url},
+			image => $args->{artwork} && $track->{large_art_url},
 			items => $trackinfo,
 			on_select   => $track->{streaming_url} ? 'play' : undef,
 			playall     => 1,

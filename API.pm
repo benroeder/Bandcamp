@@ -123,12 +123,21 @@ sub get_track_info {
 		sub {
 			my $items = shift;
 
-			$items = cache_track_info($items, $args);
+			if ($items->{track_id}) {
+				$items = cache_track_info($items, $args);
+			}
+			else {
+				foreach ( keys %$items ) {
+					cache_track_info($items->{$_}, $args->{$_});
+				}
+			}
+			
 			$cb->($items) if $cb;
 		}, 
 		undef, 
 		{
 			_url     => API_URL_TRACK,
+			_no_escape => 1,
 			track_id => $track_id,
 		}
 	);
@@ -185,7 +194,7 @@ sub _get {
 		
 	for my $k ( keys %{$args} ) {
 		next if $k =~ /^_/;
-		$url .= '&' . $k . '=' . URI::Escape::uri_escape_utf8( Encode::decode( 'utf8', $args->{$k} ) );
+		$url .= '&' . $k . '=' . ($args->{_no_escape} ? $args->{$k} : URI::Escape::uri_escape_utf8( Encode::decode( 'utf8', $args->{$k} ) ));
 	}
 
 	main::DEBUGLOG && $log->debug($url);

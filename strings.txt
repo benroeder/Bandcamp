@@ -1,12 +1,11 @@
 PLUGIN_BANDCAMP
 	EN	Band's Campout
 
-PLUGIN_BANDCAMP_FEATURED_ALBUM
-	DE	Album der Woche
-	EN	Album of the Week
-
 PLUGIN_BANDCAMP_FAN
 	EN	Fan
+
+PLUGIN_BANDCAMP_WEEKLY
+	EN	Bandcamp Weeklies
 
 PLUGIN_BANDCAMP_FANPAGE
 	DE	Meine Sammlung
@@ -35,9 +34,6 @@ PLUGIN_BANDCAMP_SELLING
 PLUGIN_BANDCAMP_META
 	DE	Entdecke Künstler, und spiele deren Alben und Tracks von bandcamp.com
 	EN	Browse and play artists, albums and tracks from bandcamp.com
-
-#PLUGIN_BANDCAMP_TAGS
-#	EN	Tags
 
 PLUGIN_BANDCAMP_SEARCHFOR_TAGS
 	DE	Nach Tags suchen

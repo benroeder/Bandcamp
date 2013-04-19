@@ -235,65 +235,110 @@ sub get_staff_picks {
 	);
 }
 
-sub get_featured_album {
+sub get_weekly_shows {
 	my ( $client, $cb, $params ) = @_;
 
 	_get($client,
-		$cb,
+		sub {
+			my $items = shift;
+			
+			my $tracks = {};
+			foreach my $show ( @$items ) {
+				foreach my $track ( @{ $show->{tracks} }) {
+					$tracks->{$track->{track_id}} = $track;
+				}
+			}
+			
+			$tracks->{track_id} = join(',', keys %$tracks);
+			
+			Plugins::Bandcamp::API::get_track_info($tracks, sub {
+				my $trackInfo = shift;
+				
+				foreach my $show ( @$items ) {
+					foreach my $track ( @{ $show->{tracks} }) {
+						if (my $details = $trackInfo->{$track->{track_id}}) {
+							foreach (qw(downloadable album_id about credits lyrics duration streaming_url)) {
+								$track->{$_} ||= $details->{$_} if $details->{$_};
+							}
+						}
+					}
+				}
+				
+				$cb->($items);
+			});
+		},
 		sub {
 			my $tree   = shift;
 			my $result = [];
 
-			my $featured = $tree->look_down("_tag", "div", "class", "featured-album");
+			my $featured = $tree->look_down("_tag", "div", "id", "pagedata");
 			
 			if ($featured) {
-				my $item = {};
+				my $data = $featured->attr('data-blob');
 				
-				my $img = $featured->find('img')->attr('src');
-				my $url = $featured->find('a')->attr('href'); 
-				$url =~ s/\?from=featuredalbum$//;
-					 
-				my $header = $featured->find_by_attribute('class', 'featured-album-header')->as_text;
-				$header =~ s/Album of the Week, //i if $header;
+				$data = eval { from_json( Encode::encode( 'utf8', $data) ) };
+				
+				if ($@ || !$data) {
+					$log->error($@);
+				}
+				elsif ( $data->{bcw_data} && $data->{bcw_index} ) {
 
-				my $title = $featured->find_by_attribute('class', 'featured-album-title');
-				$title = $title->find('a')->content if $title;
-				$title = ref $title eq 'ARRAY' ? $title->[0] : undef;
-				
-				my $artist;
-				if ($title) {
-					($artist, $title) = split /:/, $title;
-					$title = $artist if !$title;
-					$title =~ s/^\s*//;
-					$artist = '';
-				}
-				
-				my @text = $featured->look_down('_tag', 'div', 'class', qr/featured[a-z\-]+text/);
-				my $review = '';
-				foreach my $block (@text) {
-					my @lines = $block->look_down('_tag', 'p');
-					
-					foreach my $line (@lines) {
-						$review .= $line->as_text . "\n\n";
+					foreach my $index ( @{$data->{bcw_index}} ) {
+						if ( my $show = $data->{bcw_data}->{$index->{id}} ) {
+							my $tracks = [];
+							
+							foreach ( @{$show->{tracks}} ) {
+								my $art = $_->{track_image} || {};
+								
+								push @$tracks, {
+									album_id => $_->{album_id},
+									album    => $_->{album_title},
+									album_url=> $_->{album_url},
+									artist   => $_->{artist},
+									band_id  => $_->{band_id},
+									title    => $_->{title},
+									track_id => $_->{track_id},
+									url      => $_->{track_url},
+									large_art_url => $art->{thumb}->{url} || $art->{small}->{url} || $art->{screen}->{url},
+								};
+		
+								# small artwork version
+								if ( $art->{thumb}->{url} && $art->{small}->{url} && $art->{thumb}->{url} ne $art->{small}->{url} ) {
+									$cache->set('small_' . $art->{thumb}->{url}, $art->{small}->{url}, META_CACHE_TTL);
+								}
+		
+								# full size smallwork
+								if ( $art->{screen}->{url} && $art->{thumb}->{url} && $art->{screen}->{url} ne $art->{thumb}->{url} ) {
+									$cache->set('full_' . $art->{thumb}->{url}, $art->{screen}->{url}, META_CACHE_TTL);
+								}
+							}
+							
+							$index->{date} =~ /^(\d+) (\w+) (\d+)/;
+							my $date = "$1 $2 $3";
+							
+							push @$result, {
+								date  => $date,
+								subtitle => $show->{subtitle},
+								description => $show->{desc},
+								large_art_url => $show->{show_image}->{url} || $show->{show_screen_image}->{url},
+								tracks => $tracks,
+							};
+
+							if ( $show->{show_image}->{url} && $show->{show_screen_image}->{url} && $show->{show_image}->{url} ne $show->{show_screen_image}->{url} ) {
+								$cache->set('full_' . $show->{show_image}->{url}, $show->{show_screen_image}->{url}, META_CACHE_TTL);
+							}
+						} 
 					}
+
 				}
 				
-				push @$result, {
-					header => $header,
-					title  => $title,
-					artist => $artist,
-					large_art_url => $img,
-					url    => $url,
-					review => $review,
-				};
-				
-				$cache->set( 'featured_album', $result, CACHE_TTL );
+				$cache->set( 'weekly_show', $result, 300 || CACHE_TTL );
 			}
 
-			return $result
+			return $result;
 		},
 		$params,
-		'featured_album',
+		'weekly_show',
 		BASE_URL
 	);
 }
@@ -428,7 +473,7 @@ sub get_sales_feed {
 
 			my @albums;
 			my %seen;
-	warn Data::Dump::dump($items);
+
 			foreach my $event (reverse @{$items->{events}}) {
 				next unless $event->{event_type} && $event->{event_type} eq 'sale';
 				
