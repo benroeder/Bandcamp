@@ -237,10 +237,17 @@ sub get_staff_picks {
 
 sub get_weekly_shows {
 	my ( $client, $cb, $params ) = @_;
+	
+	if ( my $cached = $cache->get('weekly_show_rendered') ) {
+		$cb->($cached);
+		return;
+	}
 
 	_get($client,
 		sub {
 			my $items = shift;
+			
+			# XXX - limit to the latest 4-5 shows?
 			
 			my $tracks = {};
 			foreach my $show ( @$items ) {
@@ -249,22 +256,9 @@ sub get_weekly_shows {
 				}
 			}
 			
-			$tracks->{track_id} = join(',', keys %$tracks);
-			
-			Plugins::Bandcamp::API::get_track_info($tracks, sub {
-				my $trackInfo = shift;
-				
-				foreach my $show ( @$items ) {
-					foreach my $track ( @{ $show->{tracks} }) {
-						if (my $details = $trackInfo->{$track->{track_id}}) {
-							foreach (qw(downloadable album_id about credits lyrics duration streaming_url)) {
-								$track->{$_} ||= $details->{$_} if $details->{$_};
-							}
-						}
-					}
-				}
-				
-				$cb->($items);
+			_get_weekly_track_infos($items, $tracks, [keys %$tracks], sub {
+				$cache->set( 'weekly_show_rendered', $items, 3600 );
+				$cb->($items) if $cb;
 			});
 		},
 		sub {
@@ -332,7 +326,7 @@ sub get_weekly_shows {
 
 				}
 				
-				$cache->set( 'weekly_show', $result, 300 || CACHE_TTL );
+				$cache->set( 'weekly_show', $result, USER_CACHE_TTL );
 			}
 
 			return $result;
@@ -341,6 +335,33 @@ sub get_weekly_shows {
 		'weekly_show',
 		BASE_URL
 	);
+}
+
+sub _get_weekly_track_infos {
+	my ($items, $tracks, $trackIds, $cb) = @_;
+
+	$tracks->{track_id} = join(',', splice(@$trackIds, 0, 50));
+
+	Plugins::Bandcamp::API::get_track_info($tracks, sub {
+		my $trackInfo = shift;
+
+		foreach my $show ( @$items ) {
+			foreach my $track ( @{ $show->{tracks} }) {
+				if (my $details = $trackInfo->{$track->{track_id}}) {
+					foreach (qw(downloadable album_id about credits lyrics duration streaming_url)) {
+						$track->{$_} ||= $details->{$_} if $details->{$_};
+					}
+				}
+			}
+		}
+	
+		if (scalar @$trackIds) {
+			_get_weekly_track_infos($items, $tracks, $trackIds, $cb);
+		}
+		else {
+			$cb->() if $cb;
+		}
+	});
 }
 
 sub get_tag_list {
