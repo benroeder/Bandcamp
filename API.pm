@@ -99,7 +99,7 @@ sub get_album_info {
 
 			# keep track information in the cache
 			foreach my $track (@{$items->{tracks}}) {
-				cache_track_info($items, $args);
+				cache_track_info($track, $args);
 			}
 			
 			$cb->($items) if $cb;
@@ -147,6 +147,12 @@ sub cache_track_info {
 	my ($track, $album) = @_;
 	
 	if (my $url = $track->{streaming_url}) {
+		# sometimes we get a hash for the streaming_url? Pick the 128kbps or some random other stream
+		if (ref $url eq 'HASH') {
+			$url = $url->{'mp3-128'} || $url->{(keys %$url)[0]};
+			$track->{streaming_url} = $url;
+		}
+
 		# use album information to complete track information if available
 		if ($album) {
 			$track->{artist} ||= $album->{artist};
