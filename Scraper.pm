@@ -75,7 +75,7 @@ sub get_fan_page {
 			# try to read the JSON data in the file
 			if ($tree->as_HTML =~ /item_details:.*?(\{.*?})\s*?\};/si) {
 
-				my $collection = eval { from_json($1) };
+				my $collection = eval { from_json( Encode::encode( 'utf8', $1) ) };
 				
 				if ($@) {
 					$log->warn("Failed to parse JSON - falling back to HTML: $@");
