@@ -257,7 +257,7 @@ sub get_weekly_shows {
 			}
 			
 			_get_weekly_track_infos($items, $tracks, [keys %$tracks], sub {
-				$cache->set( 'weekly_show_rendered', $items, 3600 );
+				$cache->set( 'weekly_show_rendered', $items, 3600 ) if $items && @$items;
 				$cb->($items) if $cb;
 			});
 		},
@@ -275,9 +275,9 @@ sub get_weekly_shows {
 				if ($@ || !$data) {
 					$log->error($@);
 				}
-				elsif ( $data->{bcw_data} && $data->{bcw_index} ) {
+				elsif ( $data->{bcw_data} && $data->{bcw_seq} ) {
 
-					foreach my $index ( @{$data->{bcw_index}} ) {
+					foreach my $index ( @{$data->{bcw_seq}} ) {
 						if ( my $show = $data->{bcw_data}->{$index->{id}} ) {
 							my $tracks = [];
 							
@@ -293,7 +293,7 @@ sub get_weekly_shows {
 									title    => $_->{title},
 									track_id => $_->{track_id},
 									url      => $_->{track_url},
-									large_art_url => $art->{thumb}->{url} || $art->{small}->{url} || $art->{screen}->{url},
+									large_art_url => Plugins::Bandcamp::API::get_artwork_url_from_id($_->{track_art_id}) || $art->{thumb}->{url} || $art->{small}->{url} || $art->{screen}->{url},
 								};
 		
 								# small artwork version
@@ -314,7 +314,7 @@ sub get_weekly_shows {
 								date  => $date,
 								subtitle => $show->{subtitle},
 								description => $show->{desc},
-								large_art_url => $show->{show_image}->{url} || $show->{show_screen_image}->{url},
+								large_art_url => Plugins::Bandcamp::API::get_artwork_url_from_id($show->{show_image_id}, 0, '') || $show->{show_image}->{url} || $show->{show_screen_image}->{url},
 								tracks => $tracks,
 							};
 
@@ -326,7 +326,7 @@ sub get_weekly_shows {
 
 				}
 				
-				$cache->set( 'weekly_show', $result, USER_CACHE_TTL );
+				$cache->set( 'weekly_show', $result, USER_CACHE_TTL ) if $result && @$result;
 			}
 
 			return $result;
@@ -569,23 +569,25 @@ sub _get_discovery {
 				else {
 					foreach ( @{$item->{items}} ) {
 						next unless $_->{category} && $_->{category} eq $category;
+						
+						my $large_art = $_->{art_lg_url} || $_->{large_art};
 
 						push @$items, {
 							title         => $_->{primary_text},
 							artist        => $_->{secondary_text},
 							band_id       => $_->{band_id},
-							large_art_url => $_->{large_art} || $_->{art} || $_->{full_art},
+							large_art_url => $large_art || $_->{art} || $_->{full_art},
 							url           => $_->{url},
 						};
 
 						# small artwork version
-						if ( $_->{large_art} && $_->{art} && $_->{large_art} ne $_->{art} ) {
-							$cache->set('small_' . $_->{large_art}, $_->{art}, META_CACHE_TTL);
+						if ( $large_art && $_->{art} && $large_art ne $_->{art} ) {
+							$cache->set('small_' . $large_art, $_->{art}, META_CACHE_TTL);
 						}
 
 						# full size artwork
-						if ( $_->{full_art} && $_->{large_art} && $_->{full_art} ne $_->{large_art} ) {
-							$cache->set('full_' . $_->{large_art}, $_->{full_art}, META_CACHE_TTL);
+						if ( $_->{full_art} && $large_art && $_->{full_art} ne $large_art ) {
+							$cache->set('full_' . $large_art, $_->{full_art}, META_CACHE_TTL);
 						}
 					}
 				}
@@ -621,6 +623,8 @@ sub _get {
 			my $result;
 			my $error;
 
+			#warn Data::Dump::dump($response->content);
+			
 			if ( $response->headers->content_type =~ /html/ ) {
 				my $tree = HTML::TreeBuilder->new;
 				$tree->parse_content( Encode::decode( 'utf8', $response->content) );

@@ -12,6 +12,7 @@ use constant API_URL_ALBUM => 'http://api.bandcamp.com/api/album/2/info';
 use constant API_URL_BAND  => 'http://api.bandcamp.com/api/band/3/';
 use constant API_URL_TRACK => 'http://api.bandcamp.com/api/track/3/info';
 use constant API_URL_URL   => 'http://api.bandcamp.com/api/url/1/info';
+use constant ARTWORK_URL   => 'http://f0.bcbits.com/';
 use constant CACHE_TTL     => 3600 * 12;
 use constant META_CACHE_TTL=> 86400 * 30;
 
@@ -56,7 +57,7 @@ sub get_artist_albums {
 
 			# keep track information in the cache
 			foreach my $item (@{$items->{discography}}) {
-				$cache->set('small_' . $item->{large_art_url}, $item->{small_art_url}, META_CACHE_TTL);
+				$cache->set('small_' . $item->{large_art_url} || $item->{art_lg_url}, $item->{small_art_url}, META_CACHE_TTL);
 			}
 			
 			$cb->($items) if $cb;
@@ -118,6 +119,12 @@ sub get_track_info {
 	my $track_id = $args->{track_id};
 	
 	main::DEBUGLOG && $log->debug("Getting track info for: $track_id");
+
+	if (!$track_id) {
+		main::DEBUGLOG && $log->is_debug && logBacktrace('Got no track ID!');
+		$cb->() if $cb;
+		return;
+	}
 	
 	_get(
 		sub {
@@ -157,7 +164,7 @@ sub cache_track_info {
 		if ($album) {
 			$track->{artist} ||= $album->{artist};
 			$track->{album}  ||= $album->{title};
-			$track->{image}  ||= $track->{large_art_url} || $album->{large_art_url} || $album->{small_art_url};
+			$track->{image}  ||= $track->{art_lg_url} || $track->{large_art_url} || $album->{art_lg_url} || $album->{large_art_url} || $album->{small_art_url};
 			$track->{album_url} ||= $album->{url};
 		}
 			
@@ -169,7 +176,7 @@ sub cache_track_info {
 			}
 		}
 		
-		if ( ($track->{large_art_url} || $album->{large_art_url}) && (my $small = $track->{small_art_url} || $album->{small_art_url}) ) {
+		if ( ($track->{art_lg_url} || $album->{art_lg_url} || $track->{large_art_url} || $album->{large_art_url}) && (my $small = $track->{small_art_url} || $album->{small_art_url}) ) {
 			$cache->set('small_' . $track->{image}, $small, META_CACHE_TTL);
 		}
 			
@@ -184,6 +191,30 @@ sub cache_track_info {
 	}
 	
 	return $track;
+}
+
+# 0 => original (size & format, don't use extension)
+# 1 => fullsize (dito, use .original?, even heavier?!?)
+# 2 => 350x350 jpg
+# 3 => 100x100 jpg
+# 4 => 300x300 jpg
+# 5 => 700x700 jpg
+# 7 => 150x150 jpg
+# 8 => 124x124 jpg
+# 9 => 210x210 jpg
+# non-artwork related, but working?
+# 20 => 1024x1024 jpg
+# 22 => 25x25 jpg
+# 42 => 50x50 jpg
+sub get_artwork_url_from_id {
+	my ($image_id, $format, $type) = @_;
+	
+	$type = 'a' unless defined $type;
+	$format ||= 2; # to be tweaked!
+
+	$image_id = substr("000000000" . $image_id, -10);
+
+	return ARTWORK_URL . "img/${type}${image_id}_${format}.jpg";
 }
 
 sub track_key {

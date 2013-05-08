@@ -26,7 +26,7 @@ my $prefs = preferences('plugin.bandcamp');
 
 use constant PLUGIN_TAG       => 'bandcamp';
 use constant STREAM_URL_REGEX => qr/(?:bcbits|bandcamp)\.com\/download\/track/i;
-use constant IMAGES_URL_REGEX => qr/f0\.bcbits\.com\/z\//;
+use constant IMAGES_URL_REGEX => qr/f0\.bcbits\.com\/(?:img|z)\//;
 use constant CACHE_TTL        => 3600 * 12;
 use constant MAX_RECENT_ITEMS => 50;
 use constant RECENT_CACHE_TTL => 'never';
@@ -117,9 +117,27 @@ sub initPlugin {
 			func  => sub {
 				my ($url, $spec) = @_;
 	
-				my $size = Slim::Web::ImageProxy->getRightSize($spec, { 100 => 'small_', 350 => '' }) || 'full_';
-				$url = $cache->get("$size$url") || $url;
-				
+				if (my ($art_id) = $url =~ m|f0\.bcbits\.com/img/a(\d+)_|) {
+					my $size = Slim::Web::ImageProxy->getRightSize($spec, {
+						25 => 22,
+						50 => 42,
+						100 => 3,
+						124 => 8,
+						150 => 7,
+						210 => 9,
+						300 => 4,
+						350 => 2,
+						700 => 5,
+						1024 => 20,
+						# 0 => original (size & format, don't use extension)
+					}) || '2';
+					$url = Plugins::Bandcamp::API::get_artwork_url_from_id($art_id, $size);
+				}
+				else {
+					my $size = Slim::Web::ImageProxy->getRightSize($spec, { 100 => 'small_', 350 => '' }) || 'full_';
+					$url = $cache->get("$size$url") || $url;
+				}
+
 				return $url;
 			},
 		);
@@ -286,7 +304,9 @@ sub get_weekly_shows {
 				});
 				
 				push @$shows, {
-					name => $show->{date} . ' - ' . $show->{subtitle},
+					name  => $show->{date} . ' - ' . $show->{subtitle},
+					line1 => $show->{subtitle},
+					line2 => $show->{date},
 					image => $show->{large_art_url},
 					items => [{
 						name => $show->{description},
@@ -495,7 +515,7 @@ sub get_track {
 				tracks => [ $items ],
 				artist => $args->{artist},
 				url    => $args->{album_url},
-				large_art_url => $args->{large_art_url},
+				large_art_url => $args->{art_lg_url} || $args->{large_art_url},
 			});
 
 			# sometimes we only want the track-information, but not the track itself			
@@ -663,7 +683,7 @@ sub artist_list {
 				band_id => $_->{band_id},
 				fan     => $_->{fan},
 			}],
-			image => $_->{large_art_url},
+			image => $_->{art_lg_url} || $_->{large_art_url},
 			type  => 'link',
 		}
 	}
@@ -718,7 +738,7 @@ sub album_list {
 			line1 => $_->{artist} ? $_->{title} : undef,
 			line2 => $_->{artist},
 			url   => $cb,
-			image => $_->{large_art_url} || $_->{small_art_url} || $_->{image},
+			image => $_->{art_lg_url} || $_->{large_art_url} || $_->{small_art_url} || $_->{image},
 			passthrough => [{ 
 				album_id  => $_->{album_id},
 				album_url => $_->{url},
@@ -726,7 +746,7 @@ sub album_list {
 				band_id   => $_->{band_id},
 				artist    => $_->{artist},
 				track_id  => $_->{track_id},
-				large_art_url => $_->{large_art_url} || $_->{image},
+				large_art_url => $_->{art_lg_url} || $_->{large_art_url} || $_->{image},
 				tracks    => 1,
 			}],
 			type  => $type,
@@ -826,7 +846,7 @@ sub track_list {
 			line1 => $args->{artist} && $title,
 			line2 => $args->{artist} && $track->{artist},
 			play  => $track->{streaming_url},
-			image => $args->{artwork} && $track->{large_art_url},
+			image => $args->{artwork} && ($track->{art_lg_url} || $track->{large_art_url}),
 			items => $trackinfo,
 			on_select   => $track->{streaming_url} ? 'play' : undef,
 			playall     => 1,
