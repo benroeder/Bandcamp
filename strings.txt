@@ -96,7 +96,15 @@ PLUGIN_BANDCAMP_STAFF_PICKS
 	PL	Wybór pracowników
 	RU	Наш выбор
 	SV	Våra favoriter
+	
+PLUGIN_BANDCAMP_NEW_ARRIVALS
+	DE	Neu eingetroffen
+	EN	New Arrivals
 
+PLUGIN_BANDCAMP_MOST_RECOMMENDED
+	DE	Meist empfohlene Artisten
+	EN	Most recommended Artists
+	
 PLUGIN_BANDCAMP_USERNAME
 	DE	bandcamp.com Benutzername
 	EN	bandcamp.com Username

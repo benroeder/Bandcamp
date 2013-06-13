@@ -209,32 +209,6 @@ sub get_fan_following {
 	);
 }
 
-sub get_top_sellers {
-	my ( $client, $cb, $params ) = @_;
-
-	_get_discovery( $client, 
-		sub {
-			$cb->({
-				discography => shift
-			}) if $cb;
-		},
-		'top',
-	);
-}
-
-sub get_staff_picks {
-	my ( $client, $cb, $params ) = @_;
-
-	_get_discovery( $client,
-		sub {
-			$cb->({
-				discography => shift
-			}) if $cb;
-		},
-		'pic',
-	);
-}
-
 sub get_weekly_shows {
 	my ( $client, $cb, $params ) = @_;
 	
@@ -463,6 +437,7 @@ sub get_tag_items {
 					push @$result, {
 						title => 'PLUGIN_BANDCAMP_MORE_MATCHES',
 						url   => $args->{tag_url} . '/' . $url,
+						type  => 'link',
 					}
 				}
 
@@ -544,11 +519,22 @@ sub get_sales_feed {
 	);
 }
 
-sub _get_discovery {
-	my ( $client, $cb, $category, $nocache ) = @_;
+sub get_discovery {
+	my ( $client, $cb, $params, $args ) = @_;
 	
-	if ( !$nocache && (my $cached = $cache->get($category . $client->id)) ) {
-		$cb->($cached);
+	my $category = $args->{category};
+	my $nocache  = $args->{nocache};
+	
+	if ( $args->{url} && !$category ) {
+		($category) = $args->{url} =~ /s=([a-z]+)/;
+	}
+	
+	my $url = $args->{url} || (DISCOVERY_URL . '?s=' . $category);
+	
+	if ( !$nocache && (my $cached = $cache->get($url . $client->id)) ) {
+		$cb->({
+			discography => $cached
+		}) if $cb;
 		return;
 	}
 	
@@ -557,6 +543,7 @@ sub _get_discovery {
 			my $data = shift;
 			
 			my $items = [];
+			my %genres;
 			
 			foreach (sort keys %{$data->{discover_payload}}) {
 				next unless /s=$category\b/;
@@ -590,19 +577,37 @@ sub _get_discovery {
 							$cache->set('full_' . $large_art, $_->{full_art}, META_CACHE_TTL);
 						}
 					}
+					
+					if ( $item->{url_args} && !$args->{url} ) {
+						foreach ( keys %{$item->{url_args}->{g}} ) {
+							$genres{$_} = $item->{url_args}->{g}->{$_};
+						}
+					}
+				}
+			}
+					
+			foreach ( sort keys %genres ) {
+				next if /^all$/;
+				
+				push @$items, {
+					title => ucfirst($_),
+					url   => DISCOVERY_URL . $genres{$_},
+					type  => 'link',
 				}
 			}
 			
 			if ( !$nocache && scalar @$items ) {
-				$cache->set($category . $client->id, $items, CACHE_TTL);
+				$cache->set($url . $client->id, $items, CACHE_TTL);
 			}
 			
-			$cb->($items) if $cb;
+			$cb->({
+				discography => $items
+			}) if $cb;
 		}, 
 		undef,
 		undef,
 		undef,
-		DISCOVERY_URL . '?s=' . $category
+		$url
 	);
 }
 

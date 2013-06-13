@@ -172,12 +172,34 @@ sub handleFeed {
 		{
 			name => cstring($client, 'PLUGIN_BANDCAMP_TOPSELLERS'),
 			type => 'link',
-			url  => \&get_top_sellers,
+			url  => \&get_discovery,
+			passthrough => [{
+				category => 'top' 
+			}],
 		},
 		{
 			name => cstring($client, 'PLUGIN_BANDCAMP_STAFF_PICKS'),
 			type => 'link',
-			url  => \&get_staff_picks,
+			url  => \&get_discovery,
+			passthrough => [{
+				category => 'pic' 
+			}],
+		},
+		{
+			name => cstring($client, 'PLUGIN_BANDCAMP_NEW_ARRIVALS'),
+			type => 'link',
+			url  => \&get_discovery,
+			passthrough => [{
+				category => 'new' 
+			}],
+		},
+		{
+			name => cstring($client, 'PLUGIN_BANDCAMP_MOST_RECOMMENDED'),
+			type => 'link',
+			url  => \&get_discovery,
+			passthrough => [{
+				category => 'rec' 
+			}],
 		},
 		{
 			name => cstring($client, 'PLUGIN_BANDCAMP_SELLING'),
@@ -275,20 +297,6 @@ sub get_fan_following {
 	);
 }
 
-sub get_top_sellers {
-	my ($client, $cb, $params) = @_;
-
-	Plugins::Bandcamp::Scraper::get_top_sellers($client,
-		sub {
-			my $items = shift;
-			$cb->( album_list($client, \&get_item_info_by_url, $items, {
-				dontSort => 1,
-			}) );
-		},
-		$params,
-	);
-}
-
 sub get_weekly_shows {
 	my ($client, $cb, $params) = @_;
 
@@ -328,10 +336,10 @@ sub get_weekly_shows {
 	);
 }
 
-sub get_staff_picks {
-	my ($client, $cb, $params) = @_;
+sub get_discovery {
+	my ($client, $cb, $params, $args) = @_;
 
-	Plugins::Bandcamp::Scraper::get_staff_picks($client,
+	Plugins::Bandcamp::Scraper::get_discovery($client,
 		sub {
 			my $items = shift;
 			$cb->( album_list($client, \&get_item_info_by_url, $items, {
@@ -339,6 +347,7 @@ sub get_staff_picks {
 			}) );
 		},
 		$params,
+		$args,
 	);
 }
 
@@ -545,6 +554,14 @@ sub get_item_info_by_url {
 			tag_url => $args->{album_url}
 		});
 	}
+	
+	# genres inside top/recommendation etc.
+	elsif ($args->{album_url} =~ m|bandcamp\.com/discover_cb\?|) {
+		get_discovery($client, $cb, $params, {
+			url => $args->{url}
+		});
+	}
+
 	else {
 		Plugins::Bandcamp::API::get_item_info_by_url($client,
 			sub {
@@ -731,9 +748,9 @@ sub album_list {
 	
 	my @sorted = @{$items->{discography}};
 	@sorted = sort { 
-		$a->{title} eq 'PLUGIN_BANDCAMP_MORE_MATCHES' ? 1 
+		$a->{type} eq 'link' ? 1 
 		: (
-			$b->{title} eq 'PLUGIN_BANDCAMP_MORE_MATCHES' ? -1
+			$b->{type} eq 'link' ? -1
 			: ( lc($a->{title} || $a->{album}) cmp lc($b->{title} || $b->{album}) )
 		)
 	} @sorted unless $args->{dontSort};
@@ -741,23 +758,18 @@ sub album_list {
 	foreach (@sorted) {
 		next unless ref $_ eq 'HASH';
 		
-		my $type = 'playlist';
-
 		$_->{title} ||= $_->{album};
+		$_->{type}  ||= 'playlist';
 		
 		# special case for the "get more..." item in tags lists
-		if ( $_->{title} eq 'PLUGIN_BANDCAMP_MORE_MATCHES' ) {
-			$_->{title} = cstring($client, $_->{title});
-			$_->{image} = __PACKAGE__->_pluginDataFor('icon');
-			$type = 'link';
-		}
+		$_->{title} = cstring($client, $_->{title}) if $_->{title} =~ /PLUGIN_BANDCAMP_/;
 		
 		push @$albums, {
 			name  => $_->{title} . ($_->{artist} ? ' - ' . $_->{artist} : ''),
 			line1 => $_->{artist} ? $_->{title} : undef,
 			line2 => $_->{artist},
 			url   => $cb,
-			image => $_->{art_lg_url} || $_->{large_art_url} || $_->{small_art_url} || $_->{image},
+			image => $_->{art_lg_url} || $_->{large_art_url} || $_->{small_art_url} || $_->{image} || __PACKAGE__->_pluginDataFor('icon'),
 			passthrough => [{ 
 				album_id  => $_->{album_id},
 				album_url => $_->{url},
@@ -768,7 +780,7 @@ sub album_list {
 				large_art_url => $_->{art_lg_url} || $_->{large_art_url} || $_->{image},
 				tracks    => 1,
 			}],
-			type  => $type,
+			type  => $_->{type} || 'playlist',
 		};
 	}
 
