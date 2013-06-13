@@ -281,7 +281,9 @@ sub get_top_sellers {
 	Plugins::Bandcamp::Scraper::get_top_sellers($client,
 		sub {
 			my $items = shift;
-			$cb->( album_list($client, \&get_item_info_by_url, $items) );
+			$cb->( album_list($client, \&get_item_info_by_url, $items, {
+				dontSort => 1,
+			}) );
 		},
 		$params,
 	);
@@ -332,7 +334,9 @@ sub get_staff_picks {
 	Plugins::Bandcamp::Scraper::get_staff_picks($client,
 		sub {
 			my $items = shift;
-			$cb->( album_list($client, \&get_item_info_by_url, $items) );
+			$cb->( album_list($client, \&get_item_info_by_url, $items, {
+				dontSort => 1,
+			}) );
 		},
 		$params,
 	);
@@ -349,6 +353,8 @@ sub get_selling_items {
 			my $items = shift;
 			$cb->( album_list($client, \&get_item_info_by_url, {
 				discography => $items,
+			}, {
+				dontSort => 1,
 			}) );
 		},
 		$params,
@@ -712,15 +718,27 @@ sub tag_list {
 }
 
 sub album_list {
-	my ($client, $cb, $items) = @_;
+	my ($client, $cb, $items, $args) = @_;
 	
 	return [ {
 		name => $items->{error},
 		type => 'text',
 	} ] if $items->{error};
 	
+	$args ||= {};
+	
 	my $albums = [];
-	foreach (sort { lc($a->{title} || $a->{album}) cmp lc($b->{title} || $b->{album}) } @{$items->{discography}}) {
+	
+	my @sorted = @{$items->{discography}};
+	@sorted = sort { 
+		$a->{title} eq 'PLUGIN_BANDCAMP_MORE_MATCHES' ? 1 
+		: (
+			$b->{title} eq 'PLUGIN_BANDCAMP_MORE_MATCHES' ? -1
+			: ( lc($a->{title} || $a->{album}) cmp lc($b->{title} || $b->{album}) )
+		)
+	} @sorted unless $args->{dontSort};
+
+	foreach (@sorted) {
 		next unless ref $_ eq 'HASH';
 		
 		my $type = 'playlist';
@@ -729,8 +747,9 @@ sub album_list {
 		
 		# special case for the "get more..." item in tags lists
 		if ( $_->{title} eq 'PLUGIN_BANDCAMP_MORE_MATCHES' ) {
-			$_->{title} = cstring($client, $_->{title}),
-			$type = 'link',
+			$_->{title} = cstring($client, $_->{title});
+			$_->{image} = __PACKAGE__->_pluginDataFor('icon');
+			$type = 'link';
 		}
 		
 		push @$albums, {
