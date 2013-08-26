@@ -239,7 +239,7 @@ sub handleFeed {
 		unshift @$items, {
 			name => cstring($client, 'PLUGIN_BANDCAMP_FANPAGE'),
 			items => [{
-				name => $client->string('PLUGIN_BANDCAMP_FAN_MISSING'),
+				name => cstring($client, 'PLUGIN_BANDCAMP_FAN_MISSING'),
 				type => 'textarea',
 			}]
 		};
