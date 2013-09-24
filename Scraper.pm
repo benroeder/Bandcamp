@@ -21,7 +21,6 @@ use constant TAGS_BASE_URL => BASE_URL . 'tags/';
 use constant TAG_BASE_URL  => BASE_URL . 'tag/';
 use constant DISCOVERY_URL => BASE_URL . 'discover_cb';
 use constant API_URL_SALES => BASE_URL . 'cb_homepage_feed';
-use constant ALBUM_ART_URL => 'http://f0.bcbits.com/img/a%s_9.jpg';
 
 use constant CACHE_TTL     => 3600 * 12;
 use constant META_CACHE_TTL=> 86400 * 30;
@@ -87,8 +86,7 @@ sub get_fan_page {
 							title => $_->{item_title} || $_->{featured_track_title},
 							artist => $_->{band_name},
 							url   => $_->{item_url},
-							# XXX - what's the image URL schema?
-							large_art_url => $_->{item_art_url} || sprintf(ALBUM_ART_URL, $_->{item_art_id}),
+							large_art_url => $_->{item_art_url} || Plugins::Bandcamp::API::get_artwork_url_from_id($_->{item_art_id}),
 						};
 						
 						push @$result, $item if ($item->{title} || $item->{artist}) && $item->{url}; 
