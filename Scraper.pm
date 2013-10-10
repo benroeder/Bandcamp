@@ -475,12 +475,12 @@ sub get_sales_feed {
 				
 				foreach ( reverse @{$event->{items}} ) {
 					# we only want packages with artwork, albums and tracks
-					next unless $_->{item_type} && $_->{item_type} =~ /^[atp]$/ && $_->{art_url};
+					next unless $_->{item_type} && $_->{item_type} =~ /^[atp]$/;
 					
 					my $meta = {
 						artist => $_->{artist_name},
 						title  => $_->{item_description},
-						small_art_url => $_->{art_url},
+						large_art_url => Plugins::Bandcamp::API::get_artwork_url_from_id($_->{art_id}),
 						url    => $_->{band_url} . ($_->{item_slug} || $_->{album_slug}),
 					};
 					
@@ -563,7 +563,7 @@ sub get_discovery {
 							title         => $_->{primary_text},
 							artist        => $_->{secondary_text},
 							band_id       => $_->{band_id},
-							large_art_url => $large_art || $_->{art} || $_->{full_art},
+							large_art_url => $large_art || $_->{art} || $_->{full_art} || Plugins::Bandcamp::API::get_artwork_url_from_id($_->{art_id}),
 							url           => $_->{url},
 						};
 
@@ -619,6 +619,8 @@ sub _get {
 		$cb->( $cached );
 		return;
 	}
+	
+	$url = BASE_URL . $url if $url =~ m|^/|;
 
 	my $http = Slim::Networking::SimpleAsyncHTTP->new(
 		sub {
