@@ -481,7 +481,7 @@ sub get_sales_feed {
 						artist => $_->{artist_name},
 						title  => $_->{item_description},
 						large_art_url => Plugins::Bandcamp::API::get_artwork_url_from_id($_->{art_id}),
-						url    => $_->{band_url} . ($_->{item_slug} || $_->{album_slug}),
+						url    => Plugins::Bandcamp::API::get_url_from_hints($_->{url_hints}),
 					};
 					
 					if ($_->{item_type} eq 't') {
@@ -498,8 +498,6 @@ sub get_sales_feed {
 						);
 					}
 
-					$meta->{url} = $_->{band_url} . ($_->{album_slug} || $_->{item_slug});
-					
 					next if $seen{$meta->{url}};
 					
 					$seen{$meta->{url}} = 1;
@@ -564,7 +562,7 @@ sub get_discovery {
 							artist        => $_->{secondary_text},
 							band_id       => $_->{band_id},
 							large_art_url => $large_art || $_->{art} || $_->{full_art} || Plugins::Bandcamp::API::get_artwork_url_from_id($_->{art_id}),
-							url           => $_->{url},
+							url           => $_->{url} || Plugins::Bandcamp::API::get_url_from_hints($_->{url_hints}),
 						};
 
 						# small artwork version
@@ -621,6 +619,8 @@ sub _get {
 	}
 	
 	$url = BASE_URL . $url if $url =~ m|^/|;
+
+	main::DEBUGLOG && $log->debug("GETting $url");
 
 	my $http = Slim::Networking::SimpleAsyncHTTP->new(
 		sub {

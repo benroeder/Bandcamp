@@ -1,5 +1,7 @@
 package Plugins::Bandcamp::API;
 
+# implement http://bandcamp.com/developer
+
 use strict;
 use Encode;
 use JSON::XS::VersionOneAndTwo;
@@ -214,7 +216,40 @@ sub get_artwork_url_from_id {
 
 	$image_id = substr("000000000" . $image_id, -10);
 
-	return ARTWORK_URL . "img/${type}${image_id}_${format}.jpg";
+	return sprintf('%simg/%s%s_%s.jpg', ARTWORK_URL, $type, $image_id, $format);
+}
+
+#  url_hints => {
+#        custom_domain => "vestbotrio.com",
+#        "custom_domain_verified" => 1,
+#        item_type => "a",
+#        slug => "flowmotion",
+#        subdomain => "vestbotrio",
+#      },
+#  url_hints => {
+#        custom_domain => undef,
+#        "custom_domain_verified" => undef,
+#        item_type => "a",
+#        slug => "git-witt-u",
+#        subdomain => "fsgreen",
+#      },
+my $item_types = {
+	a => 'album',
+	t => 'track',    # just a guess...
+	p => 'merch',
+};
+
+sub get_url_from_hints {
+	my $hints = shift;
+	
+	my $url = $hints->{custom_domain};
+	$url  ||= $hints->{subdomain};
+	
+	return unless $url;
+	
+	$url .= '.bandcamp.com' unless $hints->{custom_domain};
+	
+	return sprintf('http://%s/%s/%s', $url, $item_types->{$hints->{item_type}}, $hints->{slug});
 }
 
 sub track_key {
@@ -260,7 +295,7 @@ sub _get {
 					$result = {
 						error => 'Error: ' . ($result->{error_message} || 'Unknown error')
 					};
-					$log->error($result->{error});
+					$log->error($result->{error} . ' (' . $url . ')');
 				}
 				elsif (!$args->{_nocache}) {
 					$cache->set('api_' . $url, $result, CACHE_TTL);
