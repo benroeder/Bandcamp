@@ -272,7 +272,7 @@ sub _get {
 	main::DEBUGLOG && $log->debug($url);
 	
 	if (my $cached = $cache->get('api_' . $url)) {
-		main::DEBUGLOG && $log->debug('found cached api response' . Data::Dump::dump($cached));
+		main::DEBUGLOG && $log->is_debug && $log->debug('found cached api response' . Data::Dump::dump($cached));
 		$cb->($cached);
 		return;
 	}
@@ -289,7 +289,7 @@ sub _get {
 					$response->content,
 				);
 				
-				main::DEBUGLOG && $log->debug(Data::Dump::dump($result));
+				main::DEBUGLOG && $log->is_debug && $log->debug(Data::Dump::dump($result));
 				
 				if ( !$result || $result->{error} ) {
 					$result = {

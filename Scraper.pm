@@ -458,7 +458,7 @@ sub get_sales_feed {
 	main::DEBUGLOG && $log->debug("Getting sales feed");
 	
 	if ( $params->{use_cache} && (my $cached = $cache->get('sales_feed_' . $client->id)) ) {
-		main::DEBUGLOG && $log->debug('found cached api response' . Data::Dump::dump($cached));
+		main::DEBUGLOG && $log->is_debug && $log->debug('found cached api response' . Data::Dump::dump($cached));
 		$cb->($cached) if $cb;
 		return;
 	}
@@ -613,7 +613,7 @@ sub _get {
 	my ($client, $cb, $parseCB, $params, $tag, $url) = @_;
 
 	if ( $tag && (my $cached = $cache->get($tag)) ) {
-		main::DEBUGLOG && $log->debug("found cached value for '$tag': " . Data::Dump::dump($cached));
+		main::DEBUGLOG && $log->is_debug && $log->debug("found cached value for '$tag': " . Data::Dump::dump($cached));
 		$cb->( $cached );
 		return;
 	}
@@ -653,7 +653,7 @@ sub _get {
 				$log->error($result->[0]);
 			}
 
-			main::DEBUGLOG && $log->debug(Data::Dump::dump($result));
+			main::DEBUGLOG && $log->is_debug && $log->debug(Data::Dump::dump($result));
 			
 			$cb->($result);
 		},
