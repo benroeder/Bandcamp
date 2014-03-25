@@ -549,7 +549,7 @@ sub get_item_info_by_url {
 	my ($client, $cb, $params, $args) = @_;
 	
 	# "Get more..." link
-	if ($args->{album_url} =~ m|bandcamp\.com/tag/.*?/\?page=|) {
+	if ($args->{album_url} =~ m|bandcamp\.com/+tag/.*?\?page=|) {
 		get_tag_items($client, $cb, $params, {
 			tag_url => $args->{album_url}
 		});

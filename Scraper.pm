@@ -434,9 +434,24 @@ sub get_tag_items {
 				my $more = $tree->look_down('_tag', 'span', 'class', 'nextprev next');
 				
 				if ( $more && (my $url = $more->find('a')->attr('href')) ) {
+					
+					my $uri = URI->new($args->{tag_url});
+					my $params = $uri->query_form_hash;
+					delete $params->{page};
+					
+					my $pageUri = URI->new($url);
+					
+					foreach (keys %{ $pageUri->query_form_hash }) {
+						$params->{$_} = $pageUri->query_form_hash->{$_};
+					}
+					$uri->query_form( %$params );
+
+					$url = $uri->as_string;
+					$url = BASE_URL . $url if $url =~ m|^/|;
+					
 					push @$result, {
 						title => 'PLUGIN_BANDCAMP_MORE_MATCHES',
-						url   => $args->{tag_url} . '/' . $url,
+						url   => $url,
 						type  => 'link',
 					}
 				}
