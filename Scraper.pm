@@ -73,8 +73,7 @@ sub get_fan_page {
 			my $result = [];
 
 			# try to read the JSON data in the file
-			if ($tree->as_HTML =~ /item_details:.*?(\{.*?})\s*?\};/si) {
-
+			if ($tree->as_HTML =~ /item_details:.*?(\{.*?}\s*?\}),/i) {
 				my $collection = eval { from_json( Encode::encode( 'utf8', $1) ) };
 				
 				if ($@) {
