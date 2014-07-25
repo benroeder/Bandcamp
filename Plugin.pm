@@ -269,7 +269,7 @@ sub get_fan_page {
 			$items = album_list($client, \&get_item_info_by_url, $items);
 			
 			# add "Follows" item
-			push @$items, {
+			unshift @$items, {
 				name  => cstring($client, 'PLUGIN_BANDCAMP_FAN_FOLLOWING', $args->{fan}),
 				type  => 'link',
 				url   => \&get_fan_following,
