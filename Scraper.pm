@@ -543,7 +543,7 @@ sub get_discovery {
 	
 	my $url = $args->{url} || (DISCOVERY_URL . '?s=' . $category);
 	
-	if ( !$nocache && (my $cached = $cache->get($url . $client->id)) ) {
+	if ( !$nocache && (my $cached = $cache->get($url . ($client ? $client->id : ''))) ) {
 		$cb->({
 			discography => $cached
 		}) if $cb;
