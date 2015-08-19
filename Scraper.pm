@@ -393,7 +393,12 @@ sub get_tag_items {
 
 				foreach ($item_list->content_list) {
 
-					my $img = $_->find('img')->attr('src');
+					my $img = $_->look_down('_tag', 'div', 'class', 'tralbum-art-container art artHidden')->attr('onclick');
+					if ($img) {
+						$img =~ /.*(http.*)\).*/;
+						$img = $1 || '';
+					}
+
 					my $url = $_->find('a')->attr('href'); 
 					 
 					my $title = $_->find_by_attribute('class', 'itemtext')->content;
