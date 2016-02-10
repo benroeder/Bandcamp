@@ -19,8 +19,10 @@ use Plugins::Bandcamp::API;
 use constant BASE_URL      => 'http://bandcamp.com/';
 use constant TAGS_BASE_URL => BASE_URL . 'tags/';
 use constant TAG_BASE_URL  => BASE_URL . 'tag/';
-use constant DISCOVERY_URL => BASE_URL . 'discover_cb';
-use constant API_URL_SALES => BASE_URL . 'cb_homepage_feed';
+
+# not officially documented, but worth moving to the API module?
+use constant API_URL_SALES => BASE_URL . 'api/salesfeed/1/get?start_date=';
+use constant DISCOVERY_URL => BASE_URL . 'api/discover/3/get_web?p=0&';
 
 use constant CACHE_TTL     => 3600 * 12;
 use constant META_CACHE_TTL=> 86400 * 30;
@@ -499,8 +501,8 @@ sub get_sales_feed {
 					my $meta = {
 						artist => $_->{artist_name},
 						title  => $_->{item_description},
-						large_art_url => Plugins::Bandcamp::API::get_artwork_url_from_id($_->{art_id}),
-						url    => Plugins::Bandcamp::API::get_url_from_hints($_->{url_hints}),
+						large_art_url => Plugins::Bandcamp::API::get_complete_url($_->{art_url}) || Plugins::Bandcamp::API::get_artwork_url_from_id($_->{art_id}),
+						url    => Plugins::Bandcamp::API::get_complete_url($_->{url}) || Plugins::Bandcamp::API::get_url_from_hints($_->{url_hints}),
 					};
 					
 					if ($_->{item_type} eq 't') {
@@ -532,21 +534,22 @@ sub get_sales_feed {
 		undef,
 		$params,
 		undef,
-		API_URL_SALES . '?start_date=' . (time() - 600),
+		API_URL_SALES . (time() - 600),
 	);
 }
 
 sub get_discovery {
 	my ( $client, $cb, $params, $args ) = @_;
 	
-	my $category = $args->{category};
-	my $nocache  = $args->{nocache};
+	my $nocache  = delete $args->{nocache};
+	my $url      = delete $args->{url};
+	my $orig_url = $url;
 	
-	if ( $args->{url} && !$category ) {
-		($category) = $args->{url} =~ /s=([a-z]+)/;
+	if ( $url && !$args->{s} ) {
+		($args->{s}) = $url =~ /s=([a-z]+)/;
 	}
 	
-	my $url = $args->{url} || (DISCOVERY_URL . '?s=' . $category);
+	$url ||= DISCOVERY_URL . join('&', map { "$_=" . $args->{$_} } keys %$args);
 	
 	if ( !$nocache && (my $cached = $cache->get($url . ($client ? $client->id : ''))) ) {
 		$cb->({
@@ -562,44 +565,31 @@ sub get_discovery {
 			my $items = [];
 			my %genres;
 			
-			foreach (sort keys %{$data->{discover_payload}}) {
-				next unless /s=$category\b/;
-				
-				my $item = eval { from_json( Encode::encode( 'utf8', $data->{discover_payload}->{$_}) ) };
-				
-				if ($@) {
-					$log->error("Problem parsing JSON data: $@");
+			foreach ( @{$data->{items}} ) {
+				my $large_art = $_->{art_lg_url} || $_->{large_art};
+
+				push @$items, {
+					title         => $_->{primary_text},
+					artist        => $_->{secondary_text},
+					band_id       => $_->{band_id},
+					large_art_url => $large_art || $_->{art} || $_->{full_art} || Plugins::Bandcamp::API::get_artwork_url_from_id($_->{art_id}),
+					url           => $_->{url} || Plugins::Bandcamp::API::get_url_from_hints($_->{url_hints}),
+				};
+
+				# small artwork version
+				if ( $large_art && $_->{art} && $large_art ne $_->{art} ) {
+					$cache->set('small_' . $large_art, $_->{art}, META_CACHE_TTL);
 				}
-				else {
-					foreach ( @{$item->{items}} ) {
-						next unless $_->{category} && $_->{category} eq $category;
-						
-						my $large_art = $_->{art_lg_url} || $_->{large_art};
 
-						push @$items, {
-							title         => $_->{primary_text},
-							artist        => $_->{secondary_text},
-							band_id       => $_->{band_id},
-							large_art_url => $large_art || $_->{art} || $_->{full_art} || Plugins::Bandcamp::API::get_artwork_url_from_id($_->{art_id}),
-							url           => $_->{url} || Plugins::Bandcamp::API::get_url_from_hints($_->{url_hints}),
-						};
-
-						# small artwork version
-						if ( $large_art && $_->{art} && $large_art ne $_->{art} ) {
-							$cache->set('small_' . $large_art, $_->{art}, META_CACHE_TTL);
-						}
-
-						# full size artwork
-						if ( $_->{full_art} && $large_art && $_->{full_art} ne $large_art ) {
-							$cache->set('full_' . $large_art, $_->{full_art}, META_CACHE_TTL);
-						}
-					}
-					
-					if ( $item->{url_args} && !$args->{url} ) {
-						foreach ( keys %{$item->{url_args}->{g}} ) {
-							$genres{$_} = $item->{url_args}->{g}->{$_};
-						}
-					}
+				# full size artwork
+				if ( $_->{full_art} && $large_art && $_->{full_art} ne $large_art ) {
+					$cache->set('full_' . $large_art, $_->{full_art}, META_CACHE_TTL);
+				}
+			}
+			
+			if ( $data->{args} && !$orig_url && ref $data->{args}->{g} ) {
+				while ( my ($k, $v) = each %{$data->{args}->{g}} ) {
+					$genres{$k} = $v;
 				}
 			}
 					

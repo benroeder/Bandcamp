@@ -239,6 +239,10 @@ my $item_types = {
 	p => 'merch',
 };
 
+sub get_complete_url {
+	return 'http:' . $_[0];
+}
+
 sub get_url_from_hints {
 	my $hints = shift;
 	

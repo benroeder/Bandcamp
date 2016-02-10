@@ -174,7 +174,7 @@ sub handleFeed {
 			type => 'link',
 			url  => \&get_discovery,
 			passthrough => [{
-				category => 'top' 
+				s => 'top'
 			}],
 		},
 		{
@@ -182,7 +182,7 @@ sub handleFeed {
 			type => 'link',
 			url  => \&get_discovery,
 			passthrough => [{
-				category => 'pic' 
+				s => 'pic' 
 			}],
 		},
 		{
@@ -190,7 +190,7 @@ sub handleFeed {
 			type => 'link',
 			url  => \&get_discovery,
 			passthrough => [{
-				category => 'new' 
+				s => 'new' 
 			}],
 		},
 		{
@@ -198,7 +198,8 @@ sub handleFeed {
 			type => 'link',
 			url  => \&get_discovery,
 			passthrough => [{
-				category => 'rec' 
+				s => 'rec',
+				r => 'most',
 			}],
 		},
 		{
