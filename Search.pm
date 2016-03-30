@@ -26,12 +26,12 @@ sub init {
 	$cache = shift;
 
 	# initialize recent searches: need to add them to the LRU cache ordered by timestamp
-	my $recent_searches = $cache->get('recent_searches');
+	my $cached = $cache->get('recent_searches') || {};
 	map {
-		$recent_searches{$_} = $recent_searches->{$_};
+		$recent_searches{$_} = $cached->{$_};
 	} sort { 
-		$recent_searches->{$a}->{ts} <=> $recent_searches->{$a}->{ts} 
-	} keys %$recent_searches;
+		$cached->{$a}->{ts} <=> $cached->{$a}->{ts} 
+	} keys %$cached;
 }
 
 sub search {
@@ -146,7 +146,10 @@ sub add_recent_search {
 		ts => time(),
 	};
 	
-	$cache->set('recent_searches', \%recent_searches, RECENT_CACHE_TTL);
+	# don't cache %recent_searches directly, as it's a Tie::Cache::LRU object
+	$cache->set('recent_searches', { map { 
+		$_ => $recent_searches{$_} 
+	} keys %recent_searches }, RECENT_CACHE_TTL);
 }
 
 sub recent_searches {
