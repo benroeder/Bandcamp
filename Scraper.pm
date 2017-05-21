@@ -75,7 +75,7 @@ sub get_fan_page {
 			my $result = [];
 
 			# try to read the JSON data in the file
-			if ($tree->as_HTML =~ /item_details:.*?(\{.*?}\s*?\}),/i) {
+			if ($tree->as_HTML =~ /item_details:.*?(.*),\s*$/m) {
 				my $collection = eval { from_json( Encode::encode( 'utf8', $1) ) };
 				
 				if ($@) {
@@ -97,7 +97,7 @@ sub get_fan_page {
 
 			# if the JSON data failed, parse the HTML (which would miss the wishlist)
 			if (!@$result) {
-				my @item_list = $tree->look_down("_tag", "div", "class", "collection-item-gallery-container");
+				my @item_list = $tree->look_down("_tag", "div", "class", "collection-item-gallery-container ");
 
 				foreach (@item_list) {
 
