@@ -266,32 +266,46 @@ sub get_fan_page {
 
 	Plugins::Bandcamp::Scraper::get_fan_page($client,
 		sub {
-			my $items = shift;
-			$items = album_list($client, \&get_item_info_by_url, $items);
+			my $data = shift;
 			
-			# add "Follows" item
-			unshift @$items, {
-				name  => cstring($client, 'PLUGIN_BANDCAMP_FAN_FOLLOWING', $args->{fan}),
-				type  => 'link',
-				url   => \&get_fan_following,
-				image => __PACKAGE__->_pluginDataFor('icon'),
-				passthrough => [ $args ],
-			};
+			$data = shift @$data if $data && ref $data && ref $data eq 'ARRAY';
+			my $items = [];
+
+			if (!$args->{id}) {
+				$items = album_list($client, \&get_item_info_by_url, {
+					discography => $data->{collection},
+				});
+	
+				foreach ( 
+					['wishlist', 'PLUGIN_BANDCAMP_FAN_WISHLIST'],
+					['following_bands', 'PLUGIN_BANDCAMP_FAN_FOLLOWING_BANDS'],
+					['following_fans', 'PLUGIN_BANDCAMP_FAN_FOLLOWING_FANS'],
+					['followers', 'PLUGIN_BANDCAMP_FAN_FOLLOWERS'],
+				) {
+					if ( $data->{$_->[0]} ) {
+						push @$items, {
+							name => cstring($client, $_->[1]),
+							type => 'link',
+							image=> __PACKAGE__->_pluginDataFor('icon'),
+							url  => \&get_fan_page,
+							passthrough => [{
+								fan => $args->{fan} || $params->{fan},
+								id => $_->[0],
+							}]
+						}
+					}
+				}			
+			}
+			elsif ( $args->{id} eq 'wishlist' ) {
+				$items = album_list($client, \&get_item_info_by_url, {
+					discography => $data->{wishlist},
+				});
+			}
+			elsif ( $args->{id} =~ /(following_bands|following_fans|followers)/ ) {
+				$items = artist_list({ results => $data->{$1} });
+			}
 			
 			$cb->( $items );
-		},
-		$params,
-		$args,
-	);
-}
-
-sub get_fan_following {
-	my ($client, $cb, $params, $args) = @_;
-
-	Plugins::Bandcamp::Scraper::get_fan_following($client,
-		sub {
-			my $items = shift;
-			$cb->( artist_list($items) );
 		},
 		$params,
 		$args,
@@ -707,7 +721,7 @@ sub artist_list {
 				band_id => $_->{band_id},
 				fan     => $_->{fan},
 			}],
-			image => $_->{art_lg_url} || $_->{large_art_url},
+			image => $_->{art_lg_url} || $_->{large_art_url} || __PACKAGE__->_pluginDataFor('icon'),
 			type  => 'link',
 		}
 	}

@@ -207,6 +207,7 @@ sub cache_track_info {
 # non-artwork related, but working?
 # 20 => 1024x1024 jpg
 # 22 => 25x25 jpg
+# 41 => 210x210 jpg
 # 42 => 50x50 jpg
 sub get_artwork_url_from_id {
 	my ($image_id, $format, $type) = @_;

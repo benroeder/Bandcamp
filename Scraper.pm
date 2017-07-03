@@ -66,147 +66,67 @@ sub get_fan_page {
 
 	_get($client,
 		sub {
-			$cb->({
-				discography => shift
-			});
+			$cb->(shift);
 		},
 		sub {
 			my $tree   = shift;
-			my $result = [];
+			my $result = {};
 
-			# try to read the JSON data in the file
-			if ($tree->as_HTML =~ /item_details:.*?(.*),\s*$/m) {
-				my $collection = eval { from_json( Encode::encode( 'utf8', $1) ) };
+			my $collection = $tree->look_down("_tag", "div", "id", "pagedata");
+			
+			if ($collection) {
+				my $data = $collection->attr('data-blob');
 				
-				if ($@) {
-					$log->warn("Failed to parse JSON - falling back to HTML: $@");
+				$data = eval { from_json( Encode::encode( 'utf8', $data) ) };
+				
+				if ($@ || !$data) {
+					$log->error($@);
 				}
-				elsif ($collection && ref $collection eq 'HASH') {
-					foreach (values %$collection) {
-						my $item = {
-							title => $_->{item_title} || $_->{featured_track_title},
-							artist => $_->{band_name},
-							url   => $_->{item_url},
-							large_art_url => $_->{item_art_url} || Plugins::Bandcamp::API::get_artwork_url_from_id($_->{item_art_id}),
-						};
-						
-						push @$result, $item if ($item->{title} || $item->{artist}) && $item->{url}; 
+				elsif ( my $items = $data->{item_cache} ) {
+					foreach my $type ( qw(collection wishlist) ) {
+						if ( $items->{$type} && ref $items->{$type} && keys %{$items->{$type}} ) {
+							$result->{$type} = [ sort { 
+								uc($a->{title}) cmp uc($b->{title})
+							} map {
+								{
+									title  => $_->{item_title} || $_->{featured_track_title},
+									artist => $_->{band_name},
+									url    => $_->{item_url},
+									large_art_url => $_->{item_art_url} || Plugins::Bandcamp::API::get_artwork_url_from_id($_->{item_art_id}),
+								}
+							} values %{$items->{$type}} ];
+						} 
 					}
-				}
-			}
 
-			# if the JSON data failed, parse the HTML (which would miss the wishlist)
-			if (!@$result) {
-				my @item_list = $tree->look_down("_tag", "div", "class", "collection-item-gallery-container ");
-
-				foreach (@item_list) {
-
-					next unless $_->content_list;
-					
-					my $img = $_->find('img')->attr('src');
-					my $url = $_->look_down('_tag', 'a', 'class', 'item-link')->attr('href');
-					
-					my $title = $_->find_by_attribute('class', 'collection-item-title');
-					$title = $title->content if $title;
-					$title = ref $title eq 'ARRAY' ? $title->[0] : undef;
-	
-					my $artist = $_->find_by_attribute('class', 'collection-item-artist');
-					$artist = $artist->content if $artist;
-					$artist = ref $artist eq 'ARRAY' ? $artist->[0] : undef;
-					$artist =~ s/by // if $artist;
-	
-					next unless ($title || $artist) && $url;
-					
-					push @$result, {
-						title  => $title,
-						artist => $artist,
-						large_art_url => $img,
-						url    => $url,
+					foreach my $type ( qw(following_bands following_fans followers) ) {
+						if ( $items->{$type} && ref $items->{$type} && keys %{$items->{$type}} ) {
+							$result->{$type} = [ sort { 
+								uc($a->{name}) cmp uc($b->{name}) 
+							} map {
+								my $id = $_->{fan_id} ? 'fan' : 'band_id';
+								
+								my $img = $_->{image_id} && Plugins::Bandcamp::API::get_artwork_url_from_id($_->{image_id}, undef, ''); 
+								$img  ||= $_->{art_id} && Plugins::Bandcamp::API::get_artwork_url_from_id($_->{art_id});
+								$img  ||= '';
+								
+								{
+									name => $_->{name},
+									large_art_url => $img,
+									$id => $_->{fan_id} || $_->{band_id},
+								}
+							} values %{$items->{$type}} ];
+						}
 					}
 				}
 			}
 			
-			@$result = sort { uc($a->{title}) cmp uc($b->{title}) } @$result if @$result;
+			$cache->set( $cache_key, $result, USER_CACHE_TTL ) if keys %$result && _shall_cache($params);
 			
-			$cache->set( $cache_key, $result, USER_CACHE_TTL ) if @$result && _shall_cache($params);
-			
-			return $result;
+			return [$result];
 		},
 		$params,
 		$cache_key,
 		BASE_URL . $fan
-	);
-}
-
-sub get_fan_following {
-	my ( $client, $cb, $params, $args ) = @_;
-	
-	my $fan = $args->{fan} || '';
-	
-	main::DEBUGLOG && $log->debug("Getting fan following page for: $fan");
-
-	my $cache_key = "fanpage/$fan/following";
-
-	_get($client,
-		sub {
-			$cb->({
-				results => shift
-			});
-		},
-		sub {
-			my $tree   = shift;
-			my $result = [];
-
-			my @item_list = $tree->look_down("_tag", "li", "class", "follow-grid-item");
-
-			foreach (@item_list) {
-				my $img = $_->look_down('_tag', 'img', 'class', 'lazy')->attr('data-original');
-				
-				if ( my $artist = $_->find_by_attribute('class', 'band-name') ) {
-					$artist = $artist->look_down('_tag', 'a');
-					
-					next unless $artist;
-					
-					$artist = $artist->content;
-					$artist = ref $artist eq 'ARRAY' ? $artist->[0] : undef;
-	
-					my ($id) = $_->id =~ /(\d+)$/;
-	
-					next unless $artist && $id;
-	
-					push @$result, {
-						name => $artist,
-						large_art_url => $img,
-						band_id => $id,
-					}
-				}
-				elsif ( my $fan = $_->find_by_attribute('class', 'fan-name') ) {
-					$fan = $fan->look_down('_tag', 'a');
-
-					next unless $fan;
-					
-					my ($id) = $fan->attr('href') =~ m|([^/]+)$|s;
-					
-					$fan = $fan->content;
-					$fan = ref $fan eq 'ARRAY' ? $fan->[0] : undef;
-
-					next unless $fan && $id;
-	
-					push @$result, {
-						name => $fan,
-						large_art_url => $img,
-						fan => $id,
-					}
-				}
-			}
-			
-			$cache->set( $cache_key, $result, USER_CACHE_TTL ) if @$result && _shall_cache($params);
-
-			return $result;
-		},
-		$params,
-		$cache_key,
-		BASE_URL . $fan . '/following',
 	);
 }
 

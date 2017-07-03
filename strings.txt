@@ -11,9 +11,18 @@ PLUGIN_BANDCAMP_FANPAGE
 	DE	Meine Sammlung
 	EN	My Collection
 
-PLUGIN_BANDCAMP_FAN_FOLLOWING
-	DE	%s beobachtet...
-	EN	%s is following...
+PLUGIN_BANDCAMP_FAN_FOLLOWING_BANDS
+	EN	Bands
+
+PLUGIN_BANDCAMP_FAN_FOLLOWING_FANS
+	EN	Fans
+
+PLUGIN_BANDCAMP_FAN_WISHLIST
+	DE	Wunschliste
+	EN	Wishlist
+
+PLUGIN_BANDCAMP_FAN_FOLLOWERS
+	EN	Followers
 
 PLUGIN_BANDCAMP_FAN_MISSING
 	DE	Bitte geben Sie im Logitech Media Server unter Einstellungen/Erweitert/Band's Campout ihren bandcamp.com Benutzernamen ein.
