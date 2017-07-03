@@ -16,7 +16,7 @@ use Slim::Utils::Log;
 
 use Plugins::Bandcamp::API;
 
-use constant BASE_URL      => 'http://bandcamp.com/';
+use constant BASE_URL      => 'https://bandcamp.com/';
 use constant TAGS_BASE_URL => BASE_URL . 'tags/';
 use constant TAG_BASE_URL  => BASE_URL . 'tag/';
 
