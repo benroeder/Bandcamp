@@ -103,7 +103,14 @@ sub get_fan_page {
 							$result->{$type} = [ sort { 
 								uc($a->{name}) cmp uc($b->{name}) 
 							} map {
-								my $id = $_->{fan_id} ? 'fan' : 'band_id';
+								my $id = 'band_id';
+
+								if ( $_->{fan_id} ) {
+									$id = 'fan';
+									if ( $_->{trackpipe_url} && $_->{trackpipe_url} =~ m|([^/]*)$| ) {
+										$_->{fan_id} = $1;  
+									}
+								}
 								
 								my $img = $_->{image_id} && Plugins::Bandcamp::API::get_artwork_url_from_id($_->{image_id}, undef, ''); 
 								$img  ||= $_->{art_id} && Plugins::Bandcamp::API::get_artwork_url_from_id($_->{art_id});
