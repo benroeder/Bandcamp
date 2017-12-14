@@ -260,8 +260,14 @@ sub get_url_from_hints {
 sub track_key {
 	my $url = shift;
 	
-	$url =~ /id=(\d+)/i;
-	return $1 || '';
+	if ($url =~ /id=(\d+)/i) {
+		return $1;
+	}
+	elsif ($url =~ /bcbits.*?\/stream\/.*?\/(\d+)\?/i) {
+		return $1;
+	}
+
+	return '';
 }
 
 sub _get {
