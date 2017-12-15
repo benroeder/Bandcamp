@@ -125,3 +125,10 @@ PLUGIN_BANDCAMP_USERNAME_DESC
 PLUGIN_BANDCAMP_NOT_STREAMABLE
 	DE	* Tracks können nicht wiedergegeben werden
 	EN	* Track is not available for streaming
+
+PLUGIN_BANDCAMP_URL
+	EN	Bandcamp URL
+
+PLUGIN_BANDCAMP_NOT_A_URL
+	DE	Tut mir Leid, wir konnten die Bandcamp URL nicht erkennen.
+	EN	Sorry, we couldn’t recognise that as a Bandcamp URL.

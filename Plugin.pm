@@ -231,6 +231,11 @@ sub handleFeed {
 			name => cstring($client, 'RECENT_SEARCHES'),
 			type => 'link',
 			url  => \&Plugins::Bandcamp::Search::recent_searches,
+		},
+		{
+			name => cstring($client, 'PLUGIN_BANDCAMP_URL'),
+			type => 'search',
+			url  => \&Plugins::Bandcamp::Search::search_url,
 		}
 	];
 	
@@ -570,6 +575,13 @@ sub get_item_info_by_url {
 		});
 	}
 	
+	# Search by tag URL
+	elsif ($args->{url} =~ m|bandcamp\.com/+tag/|) {
+		get_tag_items($client, $cb, $params, {
+			tag_url => $args->{url}
+		});
+	}
+
 	# genres inside top/recommendation etc.
 	elsif ($args->{album_url} =~ m|bandcamp\.com/discover_cb\?|) {
 		get_discovery($client, $cb, $params, {
@@ -587,11 +599,22 @@ sub get_item_info_by_url {
 					
 					get_album($client, $cb, $params, $args);
 				}
-				else {
+				elsif ($items->{track_id}) {
 					$args->{track_id}  ||= $items->{track_id};
 					$args->{album_url} ||= $args->{url};
 					
 					get_track($client, $cb, $params, $args);
+				}
+				elsif ($items->{band_id}) {
+					$args->{band_id} ||= $items->{band_id};
+
+					get_artist_albums($client, $cb, $params, $args);
+				}
+				else {
+					$cb->([{
+						name => cstring($client, 'PLUGIN_BANDCAMP_NOT_A_URL'),
+						type => 'text',
+					}]);
 				}
 			},
 			$params,

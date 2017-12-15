@@ -76,8 +76,14 @@ sub get_item_info_by_url {
 	my ($client, $cb, $params, $args) = @_;
 	
 	my $url = $args->{url};
-	
-	main::DEBUGLOG && $log->debug("Getting information for url: $url");
+
+	# Bandcamp usually doesn't use the leading www.
+	$url =~ s/(?:http?:\/\/|)www\.//;
+
+	# some URLs come with an invalid http:http:// prefix
+	$url =~ s/^https?:https?:\/\///;
+
+	main::INFOLOG && $log->is_info && $log->info("Getting information for url: $url");
 	
 	_get(
 		$cb, 

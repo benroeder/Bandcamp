@@ -69,6 +69,27 @@ sub search_tags {
 	_search_tags($client, $cb, $params);
 }
 
+sub search_url {
+	my ($client, $cb, $params, $args) = @_;
+
+	$params->{search} ||= $args->{q};
+
+	# Because search replaces '.' by ' ':
+	$params->{search} =~ s/ /./g;
+	
+	$search_results->{$client || ''} = {};
+
+	_search_url($client, $cb, $params);
+}
+
+sub _search_url {
+	my ($client, $cb, $params) = @_;
+
+	Plugins::Bandcamp::Plugin::get_item_info_by_url(
+		$client, $cb, $params, { url => $params->{search} }
+	);
+}
+
 sub _search_tags {
 	my ($client, $cb, $params) = @_;
 	
