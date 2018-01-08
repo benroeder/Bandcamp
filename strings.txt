@@ -7,9 +7,13 @@ PLUGIN_BANDCAMP_FAN
 PLUGIN_BANDCAMP_WEEKLY
 	EN	Bandcamp Weeklies
 
+PLUGIN_BANDCAMP_MY_MUSIC
+	DE	Mein Bandcamp
+	EN	My Bandcamp
+
 PLUGIN_BANDCAMP_FANPAGE
-	DE	Meine Sammlung
-	EN	My Collection
+	DE	Sammlung
+	EN	Collection
 
 PLUGIN_BANDCAMP_FAN_FOLLOWING_BANDS
 	EN	Bands

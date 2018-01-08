@@ -243,7 +243,7 @@ sub handleFeed {
 	
 	if ($username eq '_bandcamp_') {
 		unshift @$items, {
-			name => cstring($client, 'PLUGIN_BANDCAMP_FANPAGE'),
+			name => cstring($client, 'PLUGIN_BANDCAMP_MY_MUSIC'),
 			items => [{
 				name => cstring($client, 'PLUGIN_BANDCAMP_FAN_MISSING'),
 				type => 'textarea',
@@ -252,7 +252,7 @@ sub handleFeed {
 	}
 	elsif ($username) {
 		unshift @$items, {
-			name => cstring($client, 'PLUGIN_BANDCAMP_FANPAGE'),
+			name => cstring($client, 'PLUGIN_BANDCAMP_MY_MUSIC'),
 			type => 'link',
 			url  => \&get_fan_page,
 			passthrough => [{
@@ -277,11 +277,8 @@ sub get_fan_page {
 			my $items = [];
 
 			if (!$args->{id}) {
-				$items = album_list($client, \&get_item_info_by_url, {
-					discography => $data->{collection},
-				});
-	
 				foreach ( 
+					['collection', 'PLUGIN_BANDCAMP_FANPAGE'],
 					['wishlist', 'PLUGIN_BANDCAMP_FAN_WISHLIST'],
 					['following_bands', 'PLUGIN_BANDCAMP_FAN_FOLLOWING_BANDS'],
 					['following_fans', 'PLUGIN_BANDCAMP_FAN_FOLLOWING_FANS'],
@@ -300,6 +297,11 @@ sub get_fan_page {
 						}
 					}
 				}			
+			}
+			elsif ( $args->{id} eq 'collection' ) {
+				$items = album_list($client, \&get_item_info_by_url, {
+					discography => $data->{collection},
+				});
 			}
 			elsif ( $args->{id} eq 'wishlist' ) {
 				$items = album_list($client, \&get_item_info_by_url, {

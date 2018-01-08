@@ -556,7 +556,7 @@ sub _get {
 	
 	$url = BASE_URL . $url if $url =~ m|^/|;
 
-	main::DEBUGLOG && $log->debug("GETting $url");
+	main::INFOLOG && $log->is_info && $log->info("GETting $url");
 
 	my $http = Slim::Networking::SimpleAsyncHTTP->new(
 		sub {
