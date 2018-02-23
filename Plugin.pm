@@ -312,6 +312,17 @@ sub get_fan_page {
 						}
 					}
 				}
+
+				if (scalar @$items) {
+					push @$items, {
+						name => cstring($client, $prefs->get('collectionByDate') ? 'PLUGIN_BANDCAMP_COLLECTION_BY_DATE' : 'PLUGIN_BANDCAMP_COLLECTION_BY_NAME'),
+						url  => sub {
+							$prefs->set('collectionByDate', !$prefs->get('collectionByDate'));
+						},
+						image=> __PACKAGE__->_pluginDataFor('icon'),
+						nextWindow => 'refresh'
+					};
+				}
 			}
 			elsif ( $args->{id} =~ /collection(?:_items)?/ ) {
 				$items = album_list($client, \&get_item_info_by_url, {
@@ -355,6 +366,12 @@ sub get_collection_items {
 				my $data = shift;
 
 				if ( $data->{type} eq 'albums' ) {
+					if (!$prefs->get('collectionByDate')) {
+						$data->{items} = [ sort {
+							lc($a->{title}) cmp lc($b->{title})
+						} @{$data->{items}} ];
+					}
+
 					$items = album_list($client, \&get_item_info_by_url, {
 						discography => $data->{items},
 					},{
@@ -362,6 +379,12 @@ sub get_collection_items {
 					});
 				}
 				elsif ( $data->{type} eq 'artists' ) {
+					if (!$prefs->get('collectionByDate')) {
+						$data->{items} = [ sort {
+							lc($a->{name}) cmp lc($b->{name})
+						} @{$data->{items}} ];
+					}
+
 					$items = artist_list({
 						 results => $data->{items},
 					});

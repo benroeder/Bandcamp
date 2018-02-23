@@ -140,3 +140,11 @@ PLUGIN_BANDCAMP_NOT_A_URL
 PLUGIN_BANDCAMP_MISSING_SSL
 	DE	Band's Campout benötigt das Perl Modul IO::Socket::SSL! Ohne dieses Modul ist die Nutzung diese Plugins NICHT möglich. Bitte benutze den Paket-Manager deines Betriebssystems um es zu installieren.
 	EN	Band's Campout requires the Perl module IO::Socket::SSL. You can NOT use this plugin without this module. Please use your operating system's package manager to install it.
+
+PLUGIN_BANDCAMP_COLLECTION_BY_NAME
+	DE	Alphabetisch sortieren
+	EN	Sort alphabetically
+
+PLUGIN_BANDCAMP_COLLECTION_BY_DATE
+	DE	Nach Hinzufügedatum sortieren
+	EN	Sort by time of addition
