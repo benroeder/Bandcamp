@@ -14,9 +14,12 @@ use constant API_URL_ALBUM => 'http://api.bandcamp.com/api/album/2/info';
 use constant API_URL_BAND  => 'http://api.bandcamp.com/api/band/3/';
 use constant API_URL_TRACK => 'http://api.bandcamp.com/api/track/3/info';
 use constant API_URL_URL   => 'http://api.bandcamp.com/api/url/1/info';
+use constant API_URL_COLLECTION => 'https://bandcamp.com/api/fancollection/1/';
 use constant ARTWORK_URL   => 'http://f0.bcbits.com/';
+
 use constant CACHE_TTL     => 3600 * 12;
 use constant META_CACHE_TTL=> 86400 * 30;
+use constant USER_CACHE_TTL=> 60 * 5;
 
 my $log = logger('plugin.bandcamp');
 
@@ -27,17 +30,102 @@ sub init {
 	$dk =~ s/-//g;
 }
 
+sub get_fan_collection {
+	my ( $client, $cb, $params, $args ) = @_;
+
+	if ( my $cached = $cache->get('api_' . $args->{endpoint} . $args->{fan_id}) ) {
+		main::INFOLOG && $log->is_info && $log->info('found cached api response: ' . API_URL_COLLECTION . $args->{endpoint});
+		main::DEBUGLOG && $log->is_debug && $log->debug(Data::Dump::dump($cached));
+
+		$cb->($cached);
+		return;
+	}
+
+	_post(
+		sub {
+			my $result = shift;
+
+			my $type = '';
+			my $items;
+
+			if ($result->{items}) {
+				$type = 'albums';
+				$items = parse_album_list($result->{items});
+			}
+			elsif ($result->{followeers}) {
+				$type = 'artists';
+				$items = parse_artist_list($result->{followeers});
+			}
+
+			my $data = {
+				type  => $type,
+				items => $items
+			};
+
+			$cache->set('api_' . $args->{endpoint} . $args->{fan_id}, $data, USER_CACHE_TTL);
+
+			$cb->($data);
+		},
+		$params,
+		{
+			_url => API_URL_COLLECTION . $args->{endpoint},
+			data => {
+				fan_id => $args->{fan_id},
+				older_than_token => $args->{token} || time() . ':0:a::',
+				count => 5000,
+			},
+		}
+	)
+}
+
+sub parse_album_list {
+	return [ grep { $_ } map {
+		if ($_->{album_id}) {
+			{
+				title  => $_->{item_title} || $_->{album_title} || $_->{featured_track_title},
+				artist => $_->{band_name},
+				url    => $_->{item_url},
+				large_art_url => $_->{item_art_url} || get_artwork_url_from_id($_->{item_art_id}),
+			}
+		}
+	} @{$_[0]} ];
+}
+
+sub parse_artist_list {
+	return [ grep { $_ } map {
+		if ($_->{fan_id} || $_->{band_id}) {
+			my $id = 'band_id';
+
+			if ( $_->{fan_id} ) {
+				$id = 'fan';
+				if ( $_->{trackpipe_url} && $_->{trackpipe_url} =~ m|([^/]*)$| ) {
+					$_->{fan_id} = $1;
+				}
+			}
+
+			my $img = $_->{image_id} && get_artwork_url_from_id($_->{image_id}, undef, '');
+			$img  ||= $_->{art_id} && get_artwork_url_from_id($_->{art_id});
+
+			{
+				name => $_->{name},
+				large_art_url => $img || '',
+				$id => $_->{fan_id} || $_->{band_id},
+			}
+		}
+	} @{$_[0]} ];
+}
+
 sub search_artists {
 	my ($client, $cb, $args) = @_;
-	
+
 	my $search = $args->{search};
 	my $params = $args->{params};
-	
+
 	main::DEBUGLOG && $log->debug("Searching for artists: $search");
-	
-	_get( 
+
+	_get(
 		$cb,
-		$params, 
+		$params,
 		{
 			_url => API_URL_BAND . 'search',
 			name => $search,
@@ -48,11 +136,11 @@ sub search_artists {
 
 sub get_artist_albums {
 	my ($client, $cb, $params, $args) = @_;
-	
+
 	my $band_id = $args->{band_id};
-	
+
 	main::DEBUGLOG && $log->debug("Getting albums for artist: $band_id");
-	
+
 	_get(
 		sub {
 			my $items = shift;
@@ -61,10 +149,10 @@ sub get_artist_albums {
 			foreach my $item (@{$items->{discography}}) {
 				$cache->set('small_' . $item->{large_art_url} || $item->{art_lg_url}, $item->{small_art_url}, META_CACHE_TTL);
 			}
-			
+
 			$cb->($items) if $cb;
-		}, 
-		$params, 
+		},
+		$params,
 		{
 			_url    => API_URL_BAND . 'discography',
 			band_id => $band_id,
@@ -74,7 +162,7 @@ sub get_artist_albums {
 
 sub get_item_info_by_url {
 	my ($client, $cb, $params, $args) = @_;
-	
+
 	my $url = $args->{url};
 
 	# Bandcamp usually doesn't use the leading www.
@@ -84,10 +172,10 @@ sub get_item_info_by_url {
 	$url =~ s/^https?:https?:\/\///;
 
 	main::INFOLOG && $log->is_info && $log->info("Getting information for url: $url");
-	
+
 	_get(
-		$cb, 
-		$params, 
+		$cb,
+		$params,
 		{
 			_url   => API_URL_URL,
 			url    => $url,
@@ -97,12 +185,12 @@ sub get_item_info_by_url {
 
 sub get_album_info {
 	my ($client, $cb, $params, $args) = @_;
-	
+
 	my $album_id = $args->{album_id};
-	
+
 	main::DEBUGLOG && $log->debug("Getting tracks for album: $album_id");
-	
-	_get( 
+
+	_get(
 		sub {
 			my $items = shift;
 
@@ -110,10 +198,10 @@ sub get_album_info {
 			foreach my $track (@{$items->{tracks}}) {
 				cache_track_info($track, $args);
 			}
-			
+
 			$cb->($items) if $cb;
-		}, 
-		$params, 
+		},
+		$params,
 		{
 			_url     => API_URL_ALBUM,
 			album_id => $album_id,
@@ -123,9 +211,9 @@ sub get_album_info {
 
 sub get_track_info {
 	my ($args, $cb) = @_;
-	
+
 	my $track_id = $args->{track_id};
-	
+
 	main::DEBUGLOG && $log->debug("Getting track info for: $track_id");
 
 	if (!$track_id) {
@@ -133,7 +221,7 @@ sub get_track_info {
 		$cb->() if $cb;
 		return;
 	}
-	
+
 	_get(
 		sub {
 			my $items = shift;
@@ -146,10 +234,10 @@ sub get_track_info {
 					cache_track_info($items->{$_}, $args->{$_});
 				}
 			}
-			
+
 			$cb->($items) if $cb;
-		}, 
-		undef, 
+		},
+		undef,
 		{
 			_url     => API_URL_TRACK,
 			_no_escape => 1,
@@ -160,7 +248,7 @@ sub get_track_info {
 
 sub cache_track_info {
 	my ($track, $album) = @_;
-	
+
 	if (my $url = $track->{streaming_url}) {
 		# sometimes we get a hash for the streaming_url? Pick the 128kbps or some random other stream
 		if (ref $url eq 'HASH') {
@@ -175,29 +263,29 @@ sub cache_track_info {
 			$track->{image}  ||= $track->{art_lg_url} || $track->{large_art_url} || $album->{art_lg_url} || $album->{large_art_url} || $album->{small_art_url};
 			$track->{album_url} ||= $album->{url};
 		}
-			
+
 		# complete with cached values if needed
 		my $key = $track->{track_id} || track_key($track->{streaming_url});
 		if ( my $cached = $cache->get('meta_' . $key) ) {
 			foreach (keys %$cached) {
-				$track->{$_} ||= $cached->{$_}; 
+				$track->{$_} ||= $cached->{$_};
 			}
 		}
-		
+
 		if ( ($track->{art_lg_url} || $album->{art_lg_url} || $track->{large_art_url} || $album->{large_art_url}) && (my $small = $track->{small_art_url} || $album->{small_art_url}) ) {
 			$cache->set('small_' . $track->{image}, $small, META_CACHE_TTL);
 		}
-			
+
 		# xxx - track api is broken, returning relative URLs; get domain name from album url
 		if ($track->{url} && $track->{url} =~ m|^/| && $track->{album_url}) {
 			my ($prefix) = $track->{album_url} =~ m|(http://.*?)/|;
-	
+
 			$track->{url} = $prefix . $track->{url};
 		}
 
 		$cache->set('meta_' . $key, $track, META_CACHE_TTL);
 	}
-	
+
 	return $track;
 }
 
@@ -217,7 +305,7 @@ sub cache_track_info {
 # 42 => 50x50 jpg
 sub get_artwork_url_from_id {
 	my ($image_id, $format, $type) = @_;
-	
+
 	$type = 'a' unless defined $type;
 	$format ||= 2; # to be tweaked!
 
@@ -252,20 +340,20 @@ sub get_complete_url {
 
 sub get_url_from_hints {
 	my $hints = shift;
-	
+
 	my $url = $hints->{custom_domain};
 	$url  ||= $hints->{subdomain};
-	
+
 	return unless $url;
-	
+
 	$url .= '.bandcamp.com' unless $hints->{custom_domain};
-	
+
 	return sprintf('http://%s/%s/%s', $url, $item_types->{$hints->{item_type}}, $hints->{slug});
 }
 
 sub track_key {
 	my $url = shift;
-	
+
 	if ($url =~ /id=(\d+)/i) {
 		return $1;
 	}
@@ -278,66 +366,110 @@ sub track_key {
 
 sub _get {
 	my ( $cb, $params, $args ) = @_;
-	
+
 	my $url = (delete $args->{_url}) . ($args->{_nokey} ? '?' : '?key=' . $dk);
-		
+
 	for my $k ( keys %{$args} ) {
 		next if $k =~ /^_/;
 		$url .= '&' . $k . '=' . ($args->{_no_escape} ? $args->{$k} : URI::Escape::uri_escape_utf8( Encode::decode( 'utf8', $args->{$k} ) ));
 	}
 
 	main::DEBUGLOG && $log->debug($url);
-	
+
 	if (my $cached = $cache->get('api_' . $url)) {
 		main::DEBUGLOG && $log->is_debug && $log->debug('found cached api response' . Data::Dump::dump($cached));
 		$cb->($cached);
 		return;
 	}
-	
+
 	my $http = Slim::Networking::SimpleAsyncHTTP->new(
-		sub {
-			my $response = shift;
-			my $params   = $response->params('params');
-			
-			my $result;
-			
-			if ( $response->headers->content_type =~ /json/ ) {
-				$result = decode_json(
-					$response->content,
-				);
-				
-				main::DEBUGLOG && $log->is_debug && $log->debug(Data::Dump::dump($result));
-				
-				if ( !$result || $result->{error} ) {
-					$result = {
-						error => 'Error: ' . ($result->{error_message} || 'Unknown error')
-					};
-					$log->error($result->{error} . ' (' . $url . ')');
-				}
-				elsif (!$args->{_nocache}) {
-					$cache->set('api_' . $url, $result, CACHE_TTL);
-				}
-			}
-			else {
-				$log->error("Invalid data");
-				$result = { 
-					error => 'Error: Invalid data',
-				};
-			}
-			$cb->($result);
-		},
-		sub {
-			$log->warn("error: $_[1]");
-			$cb->([ { 
-				name => 'Unknown error: ' . $_[1],
-				type => 'text' 
-			} ]);
-		},
+		\&cb,
+		\&ecb,
 		{
 			params  => $params,
 			timeout => 30,
+			cb      => $cb,
+			nocache => $args->{_nocache},
+			args    => $args
 		},
 	)->get($url);
+}
+
+sub _post {
+	my ( $cb, $params, $args ) = @_;
+
+	my $url = $args->{_url};
+
+	my $data = ref $args->{data} ? encode_json($args->{data}) : $args->{data};
+
+	main::INFOLOG && $log->info($url);
+	main::DEBUGLOG && $log->debug(Data::Dump::dump($data));
+
+	# if ( my $cached = $cache->get('api_' . $url . $args->{_cacheId}) ) {
+	# 	main::DEBUGLOG && $log->is_debug && $log->debug('found cached api response' . Data::Dump::dump($cached));
+	# 	$cb->($cached);
+	# 	return;
+	# }
+
+	my $http = Slim::Networking::SimpleAsyncHTTP->new(
+		\&cb,
+		\&ecb,
+		{
+			params  => $params,
+			timeout => 30,
+			cb      => $cb,
+			args    => $args
+		},
+	)->post($url, 'Content-Type', $args->{ct} || 'application/json', $data);
+}
+
+sub cb {
+	my $http = shift;
+	my $cb   = $http->params('cb');
+
+	my $result;
+
+	if ( $http->headers->content_type =~ /json/ ) {
+		$result = decode_json(
+			$http->content,
+		);
+
+		main::DEBUGLOG && $log->is_debug && $log->debug(Data::Dump::dump($result));
+
+		if ( !$result || $result->{error} ) {
+			$result = {
+				error => 'Error: ' . ($result->{error_message} || 'Unknown error')
+			};
+
+			$log->error($result->{error} . ' (' . $http->url . ')');
+		}
+		elsif ( !$http->params('nocache') && $http->type ne 'POST' ) {
+			$cache->set('api_' . $http->url, $result, CACHE_TTL);
+		}
+	}
+	else {
+		$log->error("Invalid data");
+		$result = {
+			error => 'Error: Invalid data',
+		};
+	}
+
+	$cb->($result) if $cb;
+}
+
+sub ecb {
+	my ($http, $error) = @_;
+
+	my $params = $http->params('params');
+	my $cb     = $params->{cb};
+
+	$log->warn("error: $error");
+	main::DEBUGLOG && $log->is_debug && $log->debug(Data::Dump::dump($http));
+
+	$cb->([ {
+		name => 'Unknown error: ' . $error,
+		type => 'text'
+	} ]) if $cb;
 }
 
 1;

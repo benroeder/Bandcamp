@@ -40,19 +40,19 @@ my $does_scrobble;
 
 sub initPlugin {
 	my $class = shift;
-	
+
 	if (my $username = $prefs->get('username')) {
 		$prefs->set('username', '') if $username eq '_bandcamp_';
 	}
-	
+
 	$prefs->init({
 		username => '_bandcamp_'
 	});
 
-	Plugins::Bandcamp::API::init( $cache, $class->_pluginDataFor('dk') );	
-	Plugins::Bandcamp::Scraper::init( $cache );	
-	Plugins::Bandcamp::Search::init( $cache );	
-	
+	Plugins::Bandcamp::API::init( $cache, $class->_pluginDataFor('dk') );
+	Plugins::Bandcamp::Scraper::init( $cache );
+	Plugins::Bandcamp::Search::init( $cache );
+
 	$class->SUPER::initPlugin(
 		feed   => \&handleFeed,
 		tag    => PLUGIN_TAG,
@@ -60,23 +60,23 @@ sub initPlugin {
 		is_app => 1,
 		weight => 1,
 	);
-	
+
 	Slim::Formats::RemoteMetadata->registerProvider(
 		match => STREAM_URL_REGEX,
 		func  => \&metadata_provider,
 	);
-	
+
 	# Track Info item
 	Slim::Menu::TrackInfo->registerInfoProvider( bandcamp => (
 		after => 'moreinfo',
 		func  => \&trackInfoMenu,
 	) );
-	
+
 	Slim::Menu::GlobalSearch->registerInfoProvider( bandcamp => (
 		before => 'middle',
 		func   => sub {
 			my ( $client, $tags ) = @_;
-			
+
 			my $searchParam = $tags->{search};
 			my $passthrough = [{ q => $searchParam }];
 
@@ -96,27 +96,27 @@ sub initPlugin {
 			}]
 		},
 	) );
-	
+
 	# initialize recent plays: need to add them to the LRU cache ordered by timestamp
 	my $recent_plays = $cache->get('recent_plays');
 	map {
 		$recent_plays{$_} = $recent_plays->{$_};
-	} sort { 
-		$recent_plays->{$a}->{ts} <=> $recent_plays->{$a}->{ts} 
+	} sort {
+		$recent_plays->{$a}->{ts} <=> $recent_plays->{$a}->{ts}
 	} keys %$recent_plays;
-	
+
 	# try to load custom artwork handler - requires recent LMS 7.8 with new image proxy
 	eval {
 		require Slim::Web::ImageProxy;
-		
+
 		# XXX - some might not have updated their 7.8 yet...
 		if ( UNIVERSAL::can('Slim::Web::ImageProxy', 'getRightSize') ) {
-		
+
 		Slim::Web::ImageProxy->registerHandler(
 			match => IMAGES_URL_REGEX,
 			func  => sub {
 				my ($url, $spec) = @_;
-	
+
 				if (my ($art_id) = $url =~ m|f0\.bcbits\.com/img/a(\d+)_|) {
 					my $size = Slim::Web::ImageProxy->getRightSize($spec, {
 						25 => 22,
@@ -145,7 +145,7 @@ sub initPlugin {
 
 		}
 	} if preferences('server')->get('useLocalImageproxy');
-	
+
 	if (main::WEBUI) {
 		require Plugins::Bandcamp::Settings;
 		Plugins::Bandcamp::Settings->new();
@@ -160,9 +160,9 @@ sub playerMenu {}
 
 sub handleFeed {
 	my ($client, $cb, $args) = @_;
-	
+
 	my $params = $args->{params};
-	
+
 	my $items = [
 		{
 			name => cstring($client, 'PLUGIN_BANDCAMP_WEEKLY'),
@@ -182,7 +182,7 @@ sub handleFeed {
 			type => 'link',
 			url  => \&get_discovery,
 			passthrough => [{
-				s => 'pic' 
+				s => 'pic'
 			}],
 		},
 		{
@@ -190,7 +190,7 @@ sub handleFeed {
 			type => 'link',
 			url  => \&get_discovery,
 			passthrough => [{
-				s => 'new' 
+				s => 'new'
 			}],
 		},
 		{
@@ -238,9 +238,9 @@ sub handleFeed {
 			url  => \&Plugins::Bandcamp::Search::search_url,
 		}
 	];
-	
+
 	my $username = $prefs->get('username');
-	
+
 	if ($username eq '_bandcamp_') {
 		unshift @$items, {
 			name => cstring($client, 'PLUGIN_BANDCAMP_MY_MUSIC'),
@@ -260,7 +260,7 @@ sub handleFeed {
 			}],
 		};
 	}
-	
+
 	$cb->({
 		items => $items,
 	});
@@ -272,14 +272,18 @@ sub get_fan_page {
 	Plugins::Bandcamp::Scraper::get_fan_page($client,
 		sub {
 			my $data = shift;
-			
+
+			if ( $args->{fan}  && $args->{fan} eq ($prefs->get('username') || '') && (my $id = $cache->get('user_id_' . $args->{fan})) ) {
+				$prefs->set('fan_id', $id);
+			}
+
 			$data = shift @$data if $data && ref $data && ref $data eq 'ARRAY';
 			my $items = [];
 
 			if (!$args->{id}) {
-				foreach ( 
-					['collection', 'PLUGIN_BANDCAMP_FANPAGE'],
-					['wishlist', 'PLUGIN_BANDCAMP_FAN_WISHLIST'],
+				foreach (
+					['collection', 'PLUGIN_BANDCAMP_FANPAGE', 'collection_items'],
+					['wishlist', 'PLUGIN_BANDCAMP_FAN_WISHLIST', 'wishlist_items'],
 					['following_bands', 'PLUGIN_BANDCAMP_FAN_FOLLOWING_BANDS'],
 					['following_fans', 'PLUGIN_BANDCAMP_FAN_FOLLOWING_FANS'],
 					['followers', 'PLUGIN_BANDCAMP_FAN_FOLLOWERS'],
@@ -289,21 +293,21 @@ sub get_fan_page {
 							name => cstring($client, $_->[1]),
 							type => 'link',
 							image=> __PACKAGE__->_pluginDataFor('icon'),
-							url  => \&get_fan_page,
+							url  => \&get_collection_items,
 							passthrough => [{
 								fan => $args->{fan} || $params->{fan},
-								id => $_->[0],
+								id => $_->[2] || $_->[0],
 							}]
 						}
 					}
-				}			
+				}
 			}
-			elsif ( $args->{id} eq 'collection' ) {
+			elsif ( $args->{id} =~ /collection(?:_items)?/ ) {
 				$items = album_list($client, \&get_item_info_by_url, {
 					discography => $data->{collection},
 				});
 			}
-			elsif ( $args->{id} eq 'wishlist' ) {
+			elsif ( $args->{id} =~ /wishlist(?:_items)?/ ) {
 				$items = album_list($client, \&get_item_info_by_url, {
 					discography => $data->{wishlist},
 				});
@@ -311,12 +315,56 @@ sub get_fan_page {
 			elsif ( $args->{id} =~ /(following_bands|following_fans|followers)/ ) {
 				$items = artist_list({ results => $data->{$1} });
 			}
-			
+
 			$cb->( $items );
 		},
 		$params,
 		$args,
 	);
+}
+
+sub get_collection_items {
+	my ($client, $cb, $params, $args) = @_;
+
+	my $fan_id = $args->{fan} && $args->{fan} eq ($prefs->get('username') || '')
+		? $prefs->get('fan_id')
+		: '';
+
+	$fan_id ||= $cache->get('user_id_' . $args->{fan});
+
+	if ($fan_id) {
+
+		$args->{fan_id} ||= $fan_id;
+		$args->{endpoint} ||= $args->{id};
+
+		my $items = [];
+
+		Plugins::Bandcamp::API::get_fan_collection($client,
+			sub {
+				my $data = shift;
+
+				if ( $data->{type} eq 'albums' ) {
+					$items = album_list($client, \&get_item_info_by_url, {
+						discography => $data->{items},
+					},{
+						dontSort => 1,
+					});
+				}
+				elsif ( $data->{type} eq 'artists' ) {
+					$items = artist_list({
+						 results => $data->{items},
+					});
+				}
+
+				$cb->($items);
+			},
+			$params,
+			$args,
+		);
+	}
+	else {
+		get_fan_page(@_);
+	}
 }
 
 sub get_weekly_shows {
@@ -334,7 +382,7 @@ sub get_weekly_shows {
 					artwork        => 1,
 					artist         => 1,
 				});
-				
+
 				push @$shows, {
 					name  => $show->{date} . ' - ' . $show->{subtitle},
 					line1 => $show->{subtitle},
@@ -375,10 +423,10 @@ sub get_discovery {
 
 sub get_selling_items {
 	my ($client, $cb, $params) = @_;
-	
+
 	# odd hack to only cache results when entering the menu, but not when drilling down from there
 	$params->{use_cache} = ( ($params->{isControl} && $params->{index}) || ($params->{isWeb} && defined $params->{index}) ) ? 1 : 0;
-	
+
 	Plugins::Bandcamp::Scraper::get_sales_feed($client,
 		sub {
 			my $items = shift;
@@ -395,17 +443,17 @@ sub get_selling_items {
 sub recently_played {
 	my ($client, $cb, $params) = @_;
 
-	my $items = [ 
-		sort { lc($a->{title}) cmp lc($b->{title}) } 
-		map { $recent_plays{$_} } 
+	my $items = [
+		sort { lc($a->{title}) cmp lc($b->{title}) }
+		map { $recent_plays{$_} }
 		grep { $recent_plays{$_} }
-		keys %recent_plays 
+		keys %recent_plays
 	];
 
 	$items = album_list($client, \&get_item_info_by_url, {
 		discography => $items
 	});
-	
+
 	$cb->({
 		items => $items
 	});
@@ -450,12 +498,12 @@ sub get_tag_items {
 
 sub get_artist_albums {
 	my ($client, $cb, $params, $args) = @_;
-	
-	Plugins::Bandcamp::API::get_artist_albums($client, 
+
+	Plugins::Bandcamp::API::get_artist_albums($client,
 		sub {
 			my $items = shift;
 
-			$cb->( album_list($client, 
+			$cb->( album_list($client,
 				sub {
 					my ($client, $cb, $params, $args) = @_;
 					if ($args->{album_id}) {
@@ -467,21 +515,21 @@ sub get_artist_albums {
 				},
 				$items
 			), @_ );
-		}, 
-		$params, 
+		},
+		$params,
 		$args
 	);
 }
 
 sub get_album {
 	my ($client, $cb, $params, $args) = @_;
-	
+
 	Plugins::Bandcamp::API::get_album_info($client,
 		sub {
 			my $albumInfo = shift;
 
 			$log->error( Data::Dump::dump($albumInfo) ) if ref $albumInfo ne 'HASH';
-			
+
 			return [ {
 				name => $albumInfo->{error},
 				type => 'text',
@@ -493,7 +541,7 @@ sub get_album {
 
 			push @$items, {
 				name => (
-					cstring($client, $albumInfo->{downloadable} 
+					cstring($client, $albumInfo->{downloadable}
 						? ($albumInfo->{downloadable} == 1 ? 'PLUGIN_BANDCAMP_FREE' : 'PLUGIN_BANDCAMP_PAID')
 						: 'PLUGIN_BANDCAMP_NO_DOWNLOAD'
 					)
@@ -514,7 +562,7 @@ sub get_album {
 					wrap => 1,
 				}]
 			} if $albumInfo->{about};
-			
+
 			push @$items, {
 				name => cstring($client, 'PLUGIN_BANDCAMP_CREDITS'),
 				items => [{
@@ -531,9 +579,9 @@ sub get_album {
 					type => 'text',
 				}
 			}
-			
+
 			push @$items, @{ track_list($client, $albumInfo) };
-			
+
 			$cb->( $items, @_ );
 		},
 		$params,
@@ -547,7 +595,7 @@ sub get_track {
 	Plugins::Bandcamp::API::get_track_info($args,
 		sub {
 			my $items = shift;
-			
+
 			$items = track_list($client, {
 				tracks => [ $items ],
 				artist => $args->{artist},
@@ -555,28 +603,28 @@ sub get_track {
 				large_art_url => $args->{art_lg_url} || $args->{large_art_url},
 			});
 
-			# sometimes we only want the track-information, but not the track itself			
+			# sometimes we only want the track-information, but not the track itself
 			if ($args->{notracks} && $items && ref $items eq 'ARRAY' && $items->[0] && ref $items->[0] eq 'HASH' && $items->[0]->{items}) {
 				$items = $items->[0]->{items};
 			}
-			
+
 			$cb->({
 				items => $items,
 			}, @_ );
 		},
-	)	
+	)
 }
 
 sub get_item_info_by_url {
 	my ($client, $cb, $params, $args) = @_;
-	
+
 	# "Get more..." link
 	if ($args->{album_url} =~ m|bandcamp\.com/+tag/.*?\?page=|) {
 		get_tag_items($client, $cb, $params, {
 			tag_url => $args->{album_url}
 		});
 	}
-	
+
 	# Search by tag URL
 	elsif ($args->{url} =~ m|bandcamp\.com/+tag/|) {
 		get_tag_items($client, $cb, $params, {
@@ -595,16 +643,16 @@ sub get_item_info_by_url {
 		Plugins::Bandcamp::API::get_item_info_by_url($client,
 			sub {
 				my ($items) = shift;
-				
+
 				if ($items->{album_id}) {
 					$args->{album_id} ||= $items->{album_id};
-					
+
 					get_album($client, $cb, $params, $args);
 				}
 				elsif ($items->{track_id}) {
 					$args->{track_id}  ||= $items->{track_id};
 					$args->{album_url} ||= $args->{url};
-					
+
 					get_track($client, $cb, $params, $args);
 				}
 				elsif ($items->{band_id}) {
@@ -633,7 +681,7 @@ sub metadata_provider {
 		title => Slim::Music::Info::getCurrentTitle(shift),
 		cover  => __PACKAGE__->_pluginDataFor('icon'),
 	};
-	
+
 	my $key = Plugins::Bandcamp::API::track_key($url);
 	if (my $cached = $cache->get('meta_' . $key)) {
 		if ($cached->{album_url}) {
@@ -649,15 +697,15 @@ sub metadata_provider {
 					album_id => $cached->{album_id},
 					ts       => time(),
 				};
-				
+
 				$cache->set('recent_plays', \%recent_plays, RECENT_CACHE_TTL);
 			}
-			
+
 			$cached->{album_url} =~ s/\?pk=.*//;
 		}
-		
+
 		my $does_scrobble = _does_scrobble($client);
-		
+
 		$meta = {
 			title    => $cached->{title},
 			artist   => $does_scrobble ? $cached->{artist} : ($cached->{album} . ($cached->{album} ? ' - ' : '') . $cached->{artist}),
@@ -667,13 +715,13 @@ sub metadata_provider {
 			cover    => $cached->{image},
 		};
 	}
-	
+
 	return $meta;
 }
 
 sub _does_scrobble {
 	my $client = shift;
-	
+
 	# check whether user is scrobbling to last.fm - in this case we don't report the artist's url, but real metadata...
 	if ( !defined $does_scrobble ) {
 		$does_scrobble = 0;
@@ -681,35 +729,35 @@ sub _does_scrobble {
 			$does_scrobble = preferences('plugin.audioscrobbler')->get('enable_scrobbling') && Slim::Plugin::AudioScrobbler::Plugin->condition();
 		};
 	}
-	
+
 	# scrobbling is globally disabled
 	return if !$does_scrobble;
-	
+
 	my $_does_scrobble = $client->pluginData('does_scrobble');
-	
+
 	return $_does_scrobble if defined $_does_scrobble;
-	
+
 	$_does_scrobble = preferences('plugin.audioscrobbler')->client($client)->get('account');
-	
+
 	$client->pluginData( 'does_scrobble' => ($_does_scrobble ? 1 : 0) );
-	
+
 	return $_does_scrobble;
 }
 
 sub trackInfoMenu {
 	my ( $client, undef, $track ) = @_;
-	
+
 	return unless $client && $track;
-	
+
 	my $url = $track->url;
-	
+
 	return unless $url && $url =~ STREAM_URL_REGEX;
 
 	my $key = Plugins::Bandcamp::API::track_key($url);
 	if (my $cached = $cache->get('meta_' . $key)) {
 		$cached->{large_art_url} = $cached->{image};
 		$cached->{notracks}      = 1;
-		
+
 		return {
 			type => 'link',
 			name => cstring($client, 'PLUGIN_FROM_BANDCAMP'),
@@ -717,7 +765,7 @@ sub trackInfoMenu {
 			passthrough => [ $cached ],
 		};
 	}
-	
+
 	return;
 }
 
@@ -725,18 +773,18 @@ sub trackInfoMenu {
 # methods creating the lists to be shown from our data
 sub artist_list {
 	my $items = shift;
-	
+
 	return [ {
 		name => $items->{error},
 		type => 'text',
 	} ] if $items->{error};
-	
+
 	my $artists = [];
 	foreach (@{$items->{results}}) {
 		my $name = $_->{name};
-		
+
 		$name .= ' (' . string('PLUGIN_BANDCAMP_FAN') . ')' if $_->{fan};
-		
+
 		push @$artists, {
 			name  => $name,
 			line1 => $_->{offsite_url} ? $name : undef,
@@ -750,17 +798,17 @@ sub artist_list {
 			type  => 'link',
 		}
 	}
-	
+
 	return $artists;
 }
 
 sub tag_list {
 	my $items = shift;
-	
+
 	my $results = [];
-	
+
 	$items = [ sort { uc($a->{name}) cmp uc($b->{name}) } @$items ];
-	
+
 	foreach my $item ( @$items ) {
 		push @$results, {
 			name => $item->{name},
@@ -770,25 +818,25 @@ sub tag_list {
 			passthrough => [ { tag_url => $item->{url} } ]
 		}
 	}
-	
+
 	return $results;
 }
 
 sub album_list {
 	my ($client, $cb, $items, $args) = @_;
-	
+
 	return [ {
 		name => $items->{error},
 		type => 'text',
 	} ] if $items->{error};
-	
+
 	$args ||= {};
-	
+
 	my $albums = [];
-	
+
 	my @sorted = @{$items->{discography}};
-	@sorted = sort { 
-		$a->{type} eq 'link' ? 1 
+	@sorted = sort {
+		$a->{type} eq 'link' ? 1
 		: (
 			$b->{type} eq 'link' ? -1
 			: ( lc($a->{title} || $a->{album}) cmp lc($b->{title} || $b->{album}) )
@@ -797,20 +845,20 @@ sub album_list {
 
 	foreach (@sorted) {
 		next unless ref $_ eq 'HASH';
-		
+
 		$_->{title} ||= $_->{album};
 		$_->{type}  ||= 'playlist';
-		
+
 		# special case for the "get more..." item in tags lists
 		$_->{title} = cstring($client, $_->{title}) if $_->{title} =~ /PLUGIN_BANDCAMP_/;
-		
+
 		push @$albums, {
 			name  => $_->{title} . ($_->{artist} ? ' - ' . $_->{artist} : ''),
 			line1 => $_->{artist} ? $_->{title} : undef,
 			line2 => $_->{artist},
 			url   => $cb,
 			image => $_->{art_lg_url} || $_->{large_art_url} || $_->{small_art_url} || $_->{image} || __PACKAGE__->_pluginDataFor('icon'),
-			passthrough => [{ 
+			passthrough => [{
 				album_id  => $_->{album_id},
 				album_url => $_->{url},
 				url       => $_->{url},
@@ -828,7 +876,7 @@ sub album_list {
 		name => cstring($client, 'EMPTY'),
 		type => 'text',
 	} ] if !scalar @$albums;
-	
+
 	return $albums;
 }
 
@@ -838,12 +886,12 @@ sub track_list {
 	my $tracks = [];
 	foreach my $track (@{$items->{tracks}}) {
 		$track = Plugins::Bandcamp::API::cache_track_info($track, $items);
-		
+
 		my $trackinfo = [];
 
 		push @$trackinfo, {
 			name => (
-				cstring($client, $track->{downloadable} 
+				cstring($client, $track->{downloadable}
 					? ($track->{downloadable} == 1 ? 'PLUGIN_BANDCAMP_FREE' : 'PLUGIN_BANDCAMP_PAID')
 					: 'PLUGIN_BANDCAMP_NO_DOWNLOAD'
 				)
@@ -856,7 +904,7 @@ sub track_list {
 			type => 'text',
 			weblink => $track->{url},
 		} if ($track->{url} && $track->{url} =~ /^http/);
-		
+
 		push @$trackinfo, {
 			type => 'link',
 			name => cstring($client, 'ARTIST') . cstring($client, 'COLON') . ' ' . $track->{artist},
@@ -865,11 +913,11 @@ sub track_list {
 				band_id => $track->{band_id}
 			}]
 		} if $track->{artist};
-		
+
 		push @$trackinfo, {
 			type => 'link',
-			name => $track->{album} 
-						? cstring($client, 'ALBUM') . cstring($client, 'COLON') . ' ' . $track->{album} 
+			name => $track->{album}
+						? cstring($client, 'ALBUM') . cstring($client, 'COLON') . ' ' . $track->{album}
 						: cstring($client, 'PLUGIN_BANDCAMP_OTHER_TRACKS'),
 			url  => \&get_album,
 			passthrough => [{
@@ -886,7 +934,7 @@ sub track_list {
 				wrap => 1,
 			}]
 		} if $track->{about};
-		
+
 		push @$trackinfo, {
 			name => cstring($client, 'PLUGIN_BANDCAMP_CREDITS'),
 			items => [{
@@ -895,7 +943,7 @@ sub track_list {
 				wrap => 1,
 			}]
 		} if $track->{credits};
-		
+
 		push @$trackinfo, {
 			name => cstring($client, 'PLUGIN_BANDCAMP_LYRICS'),
 			items => [{
@@ -926,17 +974,17 @@ sub track_list {
 			}]
 		};
 	}
-	
+
 	return $tracks;
 }
 
 
 sub _cleanup_multiline {
 	my $text = shift;
-	
+
 	return unless defined $text;
-	
-	$text =~ s/\r\n/\n/g;	
+
+	$text =~ s/\r\n/\n/g;
 	return $text;
 }
 
