@@ -19,6 +19,7 @@ use Plugins::Bandcamp::API;
 use constant BASE_URL      => 'https://bandcamp.com/';
 use constant TAGS_BASE_URL => BASE_URL . 'tags/';
 use constant TAG_BASE_URL  => BASE_URL . 'tag/';
+use constant SEARCH_URL    => BASE_URL . 'search?q=';
 
 # not officially documented, but worth moving to the API module?
 use constant API_URL_SALES => BASE_URL . 'api/salesfeed/1/get?start_date=';
@@ -285,6 +286,56 @@ sub get_tag_list {
 	);
 }
 
+sub search_fans {
+	my ( $client, $cb, $args ) = @_;
+
+	my $search = $args->{search};
+	my $params = $args->{params};
+
+	_get($client,
+		$cb,
+		sub {
+			my $tree   = shift;
+			my $result = [];
+
+			my @fans = $tree->look_down("_tag", "li", "class", qr/searchresult fan/);
+
+			foreach my $fan (@fans) {
+				if ($fan) {
+					my $fan_item = {};
+
+					my $fan_details = $fan->look_down("_tag", "div", "class", "heading");
+					foreach ($fan_details->content_list) {
+						next unless blessed($_) && $_->attr('href') =~ /bandcamp\.com/ && ref $_->content eq 'ARRAY';
+
+						$fan_item->{name} = $_->content->[0];
+						$fan_item->{name} =~ s/^\s*|\s*$//g;
+
+						$fan_item->{url} = $_->attr('href');
+						$fan_item->{url} =~ s/\?.*//;
+
+						if ( $fan_item->{url} =~ m|([^/]+$)| ) {
+							$fan_item->{fan} = $1;
+						}
+					}
+
+					if ( my $fan_img = $fan->look_down("_tag", "img") ) {
+						$fan_item->{art_lg_url} = $fan_img->attr('src');
+					}
+
+					push @$result, $fan_item;
+				}
+			}
+
+			$cache->set( 'fan_list' . $search, $result, CACHE_TTL ) if @$result;
+
+			return $result;
+		},
+		$params,
+		'fan_list' . $search,
+		SEARCH_URL . $search,
+	);
+}
 
 sub get_tag_items {
 	my ($client, $cb, $params, $args) = @_;
@@ -533,7 +584,8 @@ sub _get {
 	my ($client, $cb, $parseCB, $params, $tag, $url) = @_;
 
 	if ( $tag && (my $cached = $cache->get($tag)) ) {
-		main::DEBUGLOG && $log->is_debug && $log->debug("found cached value for '$tag': " . Data::Dump::dump($cached));
+		main::INFOLOG && $log->is_info && $log->info("found cached value for '$tag': ");
+		main::DEBUGLOG && $log->is_debug && $log->debug(Data::Dump::dump($cached));
 		$cb->( $cached );
 		return;
 	}
