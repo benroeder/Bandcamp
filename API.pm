@@ -10,11 +10,13 @@ use URI::Escape;
 use Slim::Networking::SimpleAsyncHTTP;
 use Slim::Utils::Log;
 
-use constant API_URL_ALBUM => 'http://api.bandcamp.com/api/album/2/info';
-use constant API_URL_BAND  => 'http://api.bandcamp.com/api/band/3/';
-use constant API_URL_TRACK => 'http://api.bandcamp.com/api/track/3/info';
-use constant API_URL_URL   => 'http://api.bandcamp.com/api/url/1/info';
-use constant API_URL_COLLECTION => 'https://bandcamp.com/api/fancollection/1/';
+use constant BASE_URL      => 'https://bandcamp.com/';
+use constant API_URL_ALBUM => BASE_URL . 'api/album/2/info';
+use constant API_URL_BAND  => BASE_URL . 'api/band/3/';
+use constant API_URL_TRACK => BASE_URL . 'api/track/3/info';
+use constant API_URL_URL   => BASE_URL . 'api/url/1/info';
+use constant API_URL_COLLECTION => BASE_URL . 'api/fancollection/1/';
+
 use constant ARTWORK_URL   => 'http://f0.bcbits.com/';
 
 use constant CACHE_TTL     => 3600 * 12;
@@ -335,7 +337,10 @@ my $item_types = {
 };
 
 sub get_complete_url {
-	return 'http:' . $_[0];
+	my $url = $_[0];
+
+	return $url if $url =~ /^http/;
+	return 'http:' . $url;
 }
 
 sub get_url_from_hints {
@@ -374,7 +379,7 @@ sub _get {
 		$url .= '&' . $k . '=' . ($args->{_no_escape} ? $args->{$k} : URI::Escape::uri_escape_utf8( Encode::decode( 'utf8', $args->{$k} ) ));
 	}
 
-	main::DEBUGLOG && $log->debug($url);
+	main::INFOLOG && $log->info($url);
 
 	if (my $cached = $cache->get('api_' . $url)) {
 		main::DEBUGLOG && $log->is_debug && $log->debug('found cached api response' . Data::Dump::dump($cached));

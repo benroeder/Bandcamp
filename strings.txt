@@ -35,11 +35,11 @@ PLUGIN_BANDCAMP_FAN_MISSING
 PLUGIN_BANDCAMP_TOPSELLERS
 	DE	Top verkaufte Alben
 	EN	Top sellers of late
-	
+
 PLUGIN_BANDCAMP_RECENTLY_PLAYED
 	DE	Kürzlich gespielte Alben
 	EN	Albums Recently Played
-	
+
 PLUGIN_BANDCAMP_SELLING
 	DE	Wird eben gekauft
 	EN	Selling right now
@@ -59,7 +59,7 @@ PLUGIN_BANDCAMP_LOCATIONS
 PLUGIN_BANDCAMP_NO_DOWNLOAD
 	DE	Kein Download
 	EN	Not downloadable
-	
+
 PLUGIN_BANDCAMP_FREE
 	DE	Album gratis herunterladen!
 	EN	Download album for free!
@@ -71,7 +71,7 @@ PLUGIN_BANDCAMP_PAID
 PLUGIN_BANDCAMP_ABOUT
 	DE	Über dieses Album
 	EN	About this album
-	
+
 PLUGIN_BANDCAMP_REVIEW
 	DE	Lese Kritik
 	EN	Read Review
@@ -82,11 +82,11 @@ PLUGIN_BANDCAMP_LYRICS
 
 PLUGIN_BANDCAMP_CREDITS
 	EN	Credits
-	
+
 PLUGIN_BANDCAMP_OTHER_TRACKS
 	DE	Weitere Tracks auf diesem Album
 	EN	Other tracks of this album
-	
+
 PLUGIN_FROM_BANDCAMP
 	DE	Auf bandcamp.com
 	EN	From bandcamp.com
@@ -109,7 +109,7 @@ PLUGIN_BANDCAMP_STAFF_PICKS
 	PL	Wybór pracowników
 	RU	Наш выбор
 	SV	Våra favoriter
-	
+
 PLUGIN_BANDCAMP_NEW_ARRIVALS
 	DE	Neu eingetroffen
 	EN	New Arrivals
@@ -117,7 +117,7 @@ PLUGIN_BANDCAMP_NEW_ARRIVALS
 PLUGIN_BANDCAMP_MOST_RECOMMENDED
 	DE	Meist empfohlene Artisten
 	EN	Most recommended Artists
-	
+
 PLUGIN_BANDCAMP_USERNAME
 	DE	bandcamp.com Benutzername
 	EN	bandcamp.com Username
@@ -136,3 +136,7 @@ PLUGIN_BANDCAMP_URL
 PLUGIN_BANDCAMP_NOT_A_URL
 	DE	Tut mir Leid, wir konnten die Bandcamp URL nicht erkennen.
 	EN	Sorry, we couldn’t recognise that as a Bandcamp URL.
+
+PLUGIN_BANDCAMP_MISSING_SSL
+	DE	Band's Campout benötigt das Perl Modul IO::Socket::SSL! Ohne dieses Modul ist die Nutzung diese Plugins NICHT möglich. Bitte benutze den Paket-Manager deines Betriebssystems um es zu installieren.
+	EN	Band's Campout requires the Perl module IO::Socket::SSL. You can NOT use this plugin without this module. Please use your operating system's package manager to install it.

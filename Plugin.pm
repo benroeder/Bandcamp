@@ -41,6 +41,10 @@ my $does_scrobble;
 sub initPlugin {
 	my $class = shift;
 
+	if ( !Slim::Networking::Async::HTTP->hasSSL() ) {
+		$log->error(string('PLUGIN_BANDCAMP_MISSING_SSL'));
+	}
+
 	if (my $username = $prefs->get('username')) {
 		$prefs->set('username', '') if $username eq '_bandcamp_';
 	}
@@ -259,6 +263,13 @@ sub handleFeed {
 				fan => $username
 			}],
 		};
+	}
+
+	if (!Slim::Networking::Async::HTTP->hasSSL()) {
+		$items = [{
+			name => cstring($client, 'PLUGIN_BANDCAMP_MISSING_SSL'),
+			type => 'textarea'
+		}];
 	}
 
 	$cb->({
@@ -835,13 +846,16 @@ sub album_list {
 	my $albums = [];
 
 	my @sorted = @{$items->{discography}};
-	@sorted = sort {
-		$a->{type} eq 'link' ? 1
-		: (
-			$b->{type} eq 'link' ? -1
-			: ( lc($a->{title} || $a->{album}) cmp lc($b->{title} || $b->{album}) )
-		)
-	} @sorted unless $args->{dontSort};
+
+	if ( !$args->{dontSort} ) {
+		@sorted = sort {
+			$a->{type} eq 'link' ? 1
+			: (
+				$b->{type} eq 'link' ? -1
+				: ( lc($a->{title} || $a->{album}) cmp lc($b->{title} || $b->{album}) )
+			)
+		} @sorted;
+	}
 
 	foreach (@sorted) {
 		next unless ref $_ eq 'HASH';
