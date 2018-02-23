@@ -111,14 +111,14 @@ sub _search_tags {
 sub _search_artists {
 	my ($client, $cb, $params) = @_;
 
-	Plugins::Bandcamp::API::search_artists($client,
+	Plugins::Bandcamp::Scraper::search_artists($client,
 		sub {
 			my ($items) = @_;
 
 			my $search = $params->{search};
-			add_recent_search($search) if ($search && scalar @{ $items->{results} });
+			add_recent_search($search) if ($search && scalar @$items);
 
-			$search_results->{$client || ''}->{'artist_search'} = Plugins::Bandcamp::Plugin::artist_list($items);
+			$search_results->{$client || ''}->{'artist_search'} = Plugins::Bandcamp::Plugin::artist_list({ results => $items });
 			_search_done($client, $cb);
 		},
 		$params,
