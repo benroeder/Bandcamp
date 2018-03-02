@@ -300,6 +300,7 @@ sub cache_track_info {
 # 7 => 150x150 jpg
 # 8 => 124x124 jpg
 # 9 => 210x210 jpg
+# 10 => 1200x1200 jpg
 # non-artwork related, but working?
 # 20 => 1024x1024 jpg
 # 22 => 25x25 jpg
