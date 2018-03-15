@@ -12,7 +12,7 @@ sub name {
 }
 
 sub prefs {
-	return ($prefs, 'username');
+	return ($prefs, 'username', 'identity_token');
 }
 
 sub page {

@@ -408,8 +408,7 @@ sub _post {
 
 	my $data = ref $args->{data} ? encode_json($args->{data}) : $args->{data};
 
-	main::INFOLOG && $log->info($url);
-	main::DEBUGLOG && $log->debug(Data::Dump::dump($data));
+	main::INFOLOG && $log->info($url . ": \n" . Data::Dump::dump($data));
 
 	# if ( my $cached = $cache->get('api_' . $url . $args->{_cacheId}) ) {
 	# 	main::DEBUGLOG && $log->is_debug && $log->debug('found cached api response' . Data::Dump::dump($cached));

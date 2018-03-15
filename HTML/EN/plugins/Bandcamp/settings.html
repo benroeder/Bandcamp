@@ -4,4 +4,8 @@
 		<input type="text" name="pref_username" value="[% prefs.username == '_bandcamp_' ? '' : prefs.username %]">
 	[% END %]
 
+	[% WRAPPER setting title="PLUGIN_BANDCAMP_IDENTITY_TOKEN" desc="PLUGIN_BANDCAMP_IDENTITY_TOKEN_DESC" %]
+		<input type="text" name="pref_identity_token" value="[% prefs.identity_token %]" size="80">
+	[% END %]
+
 [% PROCESS settings/footer.html %]

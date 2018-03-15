@@ -53,6 +53,22 @@ sub initPlugin {
 		username => '_bandcamp_'
 	});
 
+	# when user enters an identity token, store it in the cookie jar, too
+	$prefs->setChange(sub {
+		my ($pref, $new, $obj, $old) = @_;
+
+		my $cookies = Slim::Networking::Async::HTTP->cookie_jar;
+		if ($new) {
+			$new =~ s/^identity=//;
+			$cookies->set_cookie(0, 'identity', $new, '/', 'bandcamp.com');
+		}
+		else {
+			$cookies->clear('bandcamp.com', '/', 'identity');
+		}
+
+		$cache->clear;
+	}, 'identity_token');
+
 	Plugins::Bandcamp::API::init( $cache, $class->_pluginDataFor('dk') );
 	Plugins::Bandcamp::Scraper::init( $cache );
 	Plugins::Bandcamp::Search::init( $cache );
