@@ -25,7 +25,7 @@ use constant CACHE_TTL     => 3600 * 12;
 use constant META_CACHE_TTL=> 86400 * 30;
 use constant USER_CACHE_TTL=> 60 * 5;
 
-use constant MAX_FEED_ITEMS => 100;
+use constant MAX_FEED_ITEMS => 50;
 
 my $log = logger('plugin.bandcamp');
 
