@@ -17,6 +17,7 @@ use constant API_URL_TRACK => BASE_URL . 'api/track/3/info';
 use constant API_URL_URL   => BASE_URL . 'api/url/1/info';
 use constant API_URL_COLLECTION => BASE_URL . 'api/fancollection/1/';
 use constant API_URL_MUSIC_FEED => BASE_URL . 'fan_dash_feed_updates';
+use constant API_URL_WEEKLY => BASE_URL . 'api/bcweekly/2/';
 
 use constant ARTWORK_URL   => 'http://f0.bcbits.com/';
 
@@ -252,7 +253,7 @@ sub get_item_info_by_url {
 	);
 }
 
-=pod replaced by Scraper::get_album_info
+=pod replaced with Scraper::get_album_info
 sub get_album_info {
 	my ($client, $cb, $params, $args) = @_;
 
@@ -279,6 +280,124 @@ sub get_album_info {
 	);
 }
 =cut
+
+sub get_weekly_shows {
+	my ($cb, $args) = @_;
+
+	_get(
+		sub {
+			my $result = shift;
+
+			my $items = [];
+
+			if ($result && ref $result && $result->{results}) {
+				$items = [ map {
+					$_->{date} =~ s/^(\d+ \w+ \d+).*/$1/;
+					$_->{large_art_url} = get_artwork_url_from_id($_->{v2_image_id} || $_->{image_id}, 5, '');
+					$_;
+				} @{$result->{results}} ]
+			}
+
+			$cb->($items) if $cb;
+		},
+		undef,
+		{
+			_url => API_URL_WEEKLY . 'list',
+			_nokey => 1,
+		}
+	)
+}
+
+sub get_weekly_show {
+	my ($cb, $args) = @_;
+
+	_get(
+		sub {
+			my $result = shift;
+
+			my $tracks = [];
+			my $podcast;
+
+			if ($result && ref $result && $result->{tracks}) {
+				$result->{date} =~ s/^(\d+ \w+ \d+).*/$1/;
+
+				my $podcastData = cache_track_info({
+					title    => $result->{subtitle},
+					artist   => $result->{date},
+					track_id => $result->{audio_track_id},
+					duration => $result->{audio_duration},
+					image    => get_artwork_url_from_id($result->{show_v2_image_id}, 5, ''),
+					streaming_url => $result->{audio_stream},
+				});
+
+				$podcast = $podcastData->{streaming_url};
+
+				foreach ( @{$result->{tracks}} ) {
+					my $cover = get_artwork_url_from_id($_->{track_art_id});
+					push @$tracks, cache_track_info({
+						title    => $_->{title},
+						artist   => $_->{artist},
+						band_id  => $_->{band_id},
+						album    => $_->{album_title},
+						album_url=> $_->{album_url},
+						album_id => $_->{album_id},
+						image    => $cover,
+						large_art_url => $cover,
+						track_id => $_->{track_id},
+						url      => $_->{url},
+					});
+				}
+			}
+
+			my $items = {
+				tracks => $tracks,
+				podcast => $podcast,
+				description => $result->{desc}
+			};
+
+			my %tracks;
+			foreach my $track ( @$tracks ) {
+				$tracks{$track->{track_id}} = $track;
+			}
+
+			# sort IDs to improve caching
+			_get_weekly_track_infos($items, \%tracks, [ sort keys %tracks ], sub {
+				$cb->($items);
+			}) if $cb;
+		},
+		undef,
+		{
+			_url => API_URL_WEEKLY . 'get',
+			_nokey => 1,
+			id => $args->{show_id},
+		}
+	)
+}
+
+sub _get_weekly_track_infos {
+	my ($show, $tracks, $trackIds, $cb) = @_;
+
+	$tracks->{track_id} = join(',', splice(@$trackIds, 0, 50));
+
+	get_track_info($tracks, sub {
+		my $trackInfo = shift;
+
+		foreach my $track ( @{ $show->{tracks} }) {
+			if (my $details = $trackInfo->{$track->{track_id}}) {
+				foreach (qw(downloadable album_id about credits lyrics duration streaming_url)) {
+					$track->{$_} ||= $details->{$_} if $details->{$_};
+				}
+			}
+		}
+
+		if (scalar @$trackIds) {
+			_get_weekly_track_infos($show, $tracks, $trackIds, $cb);
+		}
+		else {
+			$cb->() if $cb;
+		}
+	});
+}
 
 sub get_track_info {
 	my ($args, $cb) = @_;
@@ -379,7 +498,7 @@ sub get_artwork_url_from_id {
 	my ($image_id, $format, $type) = @_;
 
 	$type = 'a' unless defined $type;
-	$format ||= 2; # to be tweaked!
+	$format ||= 5; # to be tweaked!
 
 	$image_id = substr("000000000" . $image_id, -10);
 
@@ -448,6 +567,9 @@ sub _get {
 		next if $k =~ /^_/;
 		$url .= '&' . $k . '=' . ($args->{_no_escape} ? $args->{$k} : URI::Escape::uri_escape_utf8( Encode::decode( 'utf8', $args->{$k} ) ));
 	}
+
+	$url =~ s/\?&/?/;
+	$url =~ s/\?$//;
 
 	main::INFOLOG && $log->info($url);
 

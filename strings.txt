@@ -7,6 +7,14 @@ PLUGIN_BANDCAMP_FAN
 PLUGIN_BANDCAMP_WEEKLY
 	EN	Bandcamp Weeklies
 
+PLUGIN_BANDCAMP_WEEKLY_PODCAST
+	DE	Als Podcast hören (mit Kommentaren)
+	EN	Listen as podcast (with comments)
+
+PLUGIN_BANDCAMP_WEEKLY_SONGS
+	DE	Einzelne Lieder hören (ohne Kommentare)
+	EN	Listen to songs (without comments)
+
 PLUGIN_BANDCAMP_MY_MUSIC
 	DE	Mein Bandcamp
 	EN	My Bandcamp

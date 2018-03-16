@@ -451,39 +451,61 @@ sub music_feed {
 sub get_weekly_shows {
 	my ($client, $cb, $params) = @_;
 
-	Plugins::Bandcamp::Scraper::get_weekly_shows($client,
+	Plugins::Bandcamp::API::get_weekly_shows(
 		sub {
 			my $items = shift;
 
 			my $shows = [];
 
 			foreach my $show (@$items) {
-				my $tracks = track_list($client, $show, {
-					no_tracknumber => 1,
-					artwork        => 1,
-					artist         => 1,
-				});
-
 				push @$shows, {
 					name  => $show->{date} . ' - ' . $show->{subtitle},
 					line1 => $show->{subtitle},
 					line2 => $show->{date},
 					image => $show->{large_art_url},
-					items => [{
-						name => $show->{description},
-						type => 'textarea'
-					},{
-						type => 'playlist',
-						name => cstring($client, 'SONGS'),
-						items => $tracks,
-						play  => $tracks,
-					}]
+					url   => \&get_weekly_show,
+					passthrough => [{
+						show_id => $show->{id}
+					}],
 				};
 			}
 
 			$cb->( $shows );
 		},
 		$params,
+	);
+}
+
+sub get_weekly_show {
+	my ($client, $cb, $params, $args) = @_;
+
+	Plugins::Bandcamp::API::get_weekly_show(
+		sub {
+			my $show = shift;
+
+			my $tracks = track_list($client, $show, {
+				no_tracknumber => 1,
+				artwork        => 1,
+				artist         => 1,
+			});
+
+			my $items = [{
+				name => $show->{description},
+				type => 'textarea'
+			},{
+				type => 'audio',
+				name => cstring($client, 'PLUGIN_BANDCAMP_WEEKLY_PODCAST'),
+				url => $show->{podcast},
+			},{
+				type => 'playlist',
+				name => cstring($client, 'PLUGIN_BANDCAMP_WEEKLY_SONGS'),
+				items => $tracks,
+				play  => $tracks,
+			}];
+
+			$cb->($items);
+		},
+		$args
 	);
 }
 

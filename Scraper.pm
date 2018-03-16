@@ -219,6 +219,7 @@ sub get_fan_page {
 	);
 }
 
+=pod replaced with API::get_weekly_shows
 sub get_weekly_shows {
 	my ( $client, $cb, $params ) = @_;
 
@@ -347,6 +348,7 @@ sub _get_weekly_track_infos {
 		}
 	});
 }
+=cut
 
 sub get_tag_list {
 	my ( $client, $cb, $params ) = @_;
