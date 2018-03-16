@@ -83,6 +83,9 @@ PLUGIN_BANDCAMP_LYRICS
 PLUGIN_BANDCAMP_CREDITS
 	EN	Credits
 
+PLUGIN_BANDCAMP_MUSIC_FEED
+	EN	Music Feed
+
 PLUGIN_BANDCAMP_OTHER_TRACKS
 	DE	Weitere Tracks auf diesem Album
 	EN	Other tracks of this album

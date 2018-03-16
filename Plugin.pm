@@ -319,7 +319,6 @@ sub get_fan_page {
 						push @$items, {
 							name => cstring($client, $_->[1]),
 							type => 'link',
-							image=> __PACKAGE__->_pluginDataFor('icon'),
 							url  => \&get_collection_items,
 							passthrough => [{
 								fan => $args->{fan} || $params->{fan},
@@ -335,9 +334,18 @@ sub get_fan_page {
 						url  => sub {
 							$prefs->set('collectionByDate', !$prefs->get('collectionByDate'));
 						},
-						image=> __PACKAGE__->_pluginDataFor('icon'),
 						nextWindow => 'refresh'
 					};
+
+					# if we have an identity token, we're going to try to add the user's Music Feed
+					if ( $prefs->get('identity_token') && $prefs->get('fan_id')
+						&& ($args->{fan} || $params->{fan} || '') eq ($prefs->get('username') || '')
+					) {
+						splice(@$items, 1, 0, {
+							name => cstring($client, 'PLUGIN_BANDCAMP_MUSIC_FEED'),
+							url  => \&music_feed,
+						})
+					}
 				}
 			}
 			elsif ( $args->{id} =~ /collection(?:_items)?/ ) {
@@ -415,6 +423,29 @@ sub get_collection_items {
 	else {
 		get_fan_page(@_);
 	}
+}
+
+sub music_feed {
+	my ($client, $cb, $params) = @_;
+
+	Plugins::Bandcamp::API::fan_dash_feed_updates($client,
+		sub {
+			my $result = shift;
+
+			my $items = track_list($client, $result, {
+				no_tracknumber => 1,
+				artwork        => 1,
+				artist         => 1,
+				album          => 1,
+			});
+
+			$cb->($items);
+		},
+		$params,
+		{
+			fan_id => $prefs->get('fan_id')
+		}
+	)
 }
 
 sub get_weekly_shows {
@@ -1016,7 +1047,7 @@ sub track_list {
 #			type  => 'link',
 			name  => $title,
 			line1 => $args->{artist} && $title,
-			line2 => $args->{artist} && $track->{artist},
+			line2 => $args->{artist} && $track->{artist} . ($args->{album} ? ($args->{artist} ? ' - ' : '') . $track->{album} : ''),
 			play  => $track->{streaming_url},
 			image => $args->{artwork} && ($track->{art_lg_url} || $track->{large_art_url}),
 			items => $trackinfo,

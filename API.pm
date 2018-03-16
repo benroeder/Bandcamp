@@ -16,12 +16,15 @@ use constant API_URL_BAND  => BASE_URL . 'api/band/3/';
 use constant API_URL_TRACK => BASE_URL . 'api/track/3/info';
 use constant API_URL_URL   => BASE_URL . 'api/url/1/info';
 use constant API_URL_COLLECTION => BASE_URL . 'api/fancollection/1/';
+use constant API_URL_MUSIC_FEED => BASE_URL . 'fan_dash_feed_updates';
 
 use constant ARTWORK_URL   => 'http://f0.bcbits.com/';
 
 use constant CACHE_TTL     => 3600 * 12;
 use constant META_CACHE_TTL=> 86400 * 30;
 use constant USER_CACHE_TTL=> 60 * 5;
+
+use constant MAX_FEED_ITEMS => 100;
 
 my $log = logger('plugin.bandcamp');
 
@@ -34,14 +37,6 @@ sub init {
 
 sub get_fan_collection {
 	my ( $client, $cb, $params, $args ) = @_;
-
-	if ( my $cached = $cache->get('api_' . $args->{endpoint} . $args->{fan_id}) ) {
-		main::INFOLOG && $log->is_info && $log->info('found cached api response: ' . API_URL_COLLECTION . $args->{endpoint});
-		main::DEBUGLOG && $log->is_debug && $log->debug(Data::Dump::dump($cached));
-
-		$cb->($cached);
-		return;
-	}
 
 	_post(
 		sub {
@@ -64,13 +59,13 @@ sub get_fan_collection {
 				items => $items
 			};
 
-			$cache->set('api_' . $args->{endpoint} . $args->{fan_id}, $data, USER_CACHE_TTL);
-
 			$cb->($data);
 		},
 		$params,
 		{
 			_url => API_URL_COLLECTION . $args->{endpoint},
+			_cacheKey => $args->{endpoint} . $args->{fan_id},
+			_cacheTTL => USER_CACHE_TTL,
 			data => {
 				fan_id => $args->{fan_id},
 				older_than_token => $args->{token} || time() . ':0:a::',
@@ -78,6 +73,78 @@ sub get_fan_collection {
 			},
 		}
 	)
+}
+
+sub fan_dash_feed_updates {
+	my ( $client, $cb, $params, $args ) = @_;
+
+	$args->{story_date} ||= time();
+
+	_post(
+		sub {
+			my $result = shift;
+
+			my $entries = {};
+			eval {
+				map {
+					$entries->{$_->{featured_track}} = $_;
+				} @{$result->{stories}->{entries}};
+			};
+
+			my $feed = $args->{feed} || [];
+			my $oldest_story_date;
+			my $tracks = eval { $result->{stories}->{track_list} };
+
+			if ( $tracks && scalar @$tracks ) {
+				foreach my $item (@$tracks) {
+					my $type = $item->{tralbum_type} || '';
+
+					my $track = {
+						title    => $item->{title},
+						artist   => $item->{band_name},
+						band_id  => $item->{band_id},
+						album    => $item->{album_title},
+						album_id => $item->{album_id},
+						large_art_url => get_artwork_url_from_id($item->{art_id}),
+						track_id => $item->{track_id},
+						streaming_url => $item->{streaming_url},
+						duration => $item->{duration},
+					};
+
+					if ( my $entry = $entries->{$item->{track_id}} ) {
+						$track->{url} = $entry->{item_url};
+						$track->{album_url} = $entry->{item_url};
+					}
+
+					push @$feed, cache_track_info($track);
+				}
+
+				$oldest_story_date = eval {
+					$result->{stories}->{oldest_story_date}
+				};
+			}
+
+			# there's more to grab - get it
+			if ( $oldest_story_date && scalar @$feed < MAX_FEED_ITEMS ) {
+				$args->{story_date} = $oldest_story_date;
+				$args->{feed} = $feed;
+				fan_dash_feed_updates($client, $cb, $params, $args);
+				return;
+			}
+
+			$cb->({
+				tracks => $feed,
+			});
+		},
+		$params,
+		{
+			_url => API_URL_MUSIC_FEED,
+			_ct => 'application/x-www-form-urlencoded',
+			_cacheKey => 'music_feed_' . $args->{fan_id} . $args->{story_date},
+			_cacheTTL => USER_CACHE_TTL,
+			data => sprintf('fan_id=%s&older_than=%s', $args->{fan_id}, $args->{story_date}),
+		}
+	);
 }
 
 sub parse_album_list {
@@ -185,6 +252,7 @@ sub get_item_info_by_url {
 	);
 }
 
+=pod replaced by Scraper::get_album_info
 sub get_album_info {
 	my ($client, $cb, $params, $args) = @_;
 
@@ -210,6 +278,7 @@ sub get_album_info {
 		}
 	);
 }
+=cut
 
 sub get_track_info {
 	my ($args, $cb) = @_;
@@ -410,11 +479,11 @@ sub _post {
 
 	main::INFOLOG && $log->info($url . ": \n" . Data::Dump::dump($data));
 
-	# if ( my $cached = $cache->get('api_' . $url . $args->{_cacheId}) ) {
-	# 	main::DEBUGLOG && $log->is_debug && $log->debug('found cached api response' . Data::Dump::dump($cached));
-	# 	$cb->($cached);
-	# 	return;
-	# }
+	if ( $args->{_cacheKey} && (my $cached = $cache->get('api_' . $args->{_cacheKey})) ) {
+		main::DEBUGLOG && $log->is_debug && $log->debug('found cached api response' . Data::Dump::dump($cached));
+		$cb->($cached);
+		return;
+	}
 
 	my $http = Slim::Networking::SimpleAsyncHTTP->new(
 		\&cb,
@@ -425,12 +494,13 @@ sub _post {
 			cb      => $cb,
 			args    => $args
 		},
-	)->post($url, 'Content-Type', $args->{ct} || 'application/json', $data);
+	)->post($url, 'Content-Type', $args->{_ct} || 'application/json', $data);
 }
 
 sub cb {
 	my $http = shift;
 	my $cb   = $http->params('cb');
+	my $args = $http->params('args');
 
 	my $result;
 
@@ -449,7 +519,10 @@ sub cb {
 			$log->error($result->{error} . ' (' . $http->url . ')');
 		}
 		elsif ( !$http->params('nocache') && $http->type ne 'POST' ) {
-			$cache->set('api_' . $http->url, $result, CACHE_TTL);
+			$cache->set('api_' . $http->url, $result, $http->params('_cacheTTL') || CACHE_TTL);
+		}
+		elsif ( $args && $args->{_cacheKey} ) {
+			$cache->set('api_' . $args->{_cacheKey}, $result, $args->{'_cacheTTL'} || CACHE_TTL);
 		}
 	}
 	else {
