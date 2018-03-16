@@ -427,7 +427,7 @@ sub get_weekly_shows {
 						type => 'textarea'
 					},{
 						type => 'playlist',
-						name => cstring($client, 'TRACKS'),
+						name => cstring($client, 'SONGS'),
 						items => $tracks,
 						play  => $tracks,
 					}]
