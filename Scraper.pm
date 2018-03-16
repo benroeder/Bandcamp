@@ -56,6 +56,105 @@ sub search_tags {
 	);
 }
 
+sub get_album_info {
+	my ($client, $cb, $params, $args) = @_;
+
+	my $album_url = $args->{album_url};
+
+	main::DEBUGLOG && $log->debug("Getting tracks for album: $album_url");
+
+	_get($client,
+		sub {
+			my $items = shift;
+
+			my $album = shift @$items;
+
+			if ( ref $album && !$album->{tracks} && $album->{name} && $album->{name} =~ /error.*404/i ) {
+				$album = {
+					error => Slim::Utils::Strings::cstring($client, 'PLUGIN_BANDCAMP_ALBUM_NOT_FOUND')
+				};
+			}
+
+			# we had to squeeze the full album object into an array ref, because that's what the scraping code expects...
+			$cb->($album) if $cb;
+		},
+		sub {
+			my $tree   = shift;
+			my $result = [];
+
+			my $section = $tree->look_down("_tag", "div", "id", "pgBd");
+
+			if ($section) {
+				my @scripts = $section->look_down("_tag", "script");
+				foreach (@scripts) {
+					my $html = $_->as_HTML;
+
+					if ($html =~ /var TralbumData\b/ && $html =~ /var EmbedData\b/ && $html =~ /^\s+trackinfo: (\[.*\]),\s*$/m) {
+						my $trackData = eval { from_json( Encode::encode('utf8', $1) ) };
+						my $album = {
+							url => $album_url
+						};
+
+						# if we found track data, we'll continue
+						if ( $trackData && ref $trackData ) {
+							if ( $html =~ /var EmbedData = (\{.*?\});/s ) {
+								my $albumData = Encode::encode('utf8', $1);
+
+								if ($albumData =~ /album_title: "(.*?)"/) {
+									$album->{title} = $1;
+								}
+
+								if ($albumData =~ /artist: "(.*?)"/) {
+									$album->{artist} = $1;
+								}
+
+								if ($albumData =~ /art_id: (\d+)/) {
+									$album->{art_lg_url} = Plugins::Bandcamp::API::get_artwork_url_from_id($1);
+								}
+							}
+
+							if ( $html =~ /^\s+current: (\{.*\}),\s*$/m ) {
+								my $moreData = eval { from_json( Encode::encode('utf8', $1) ) };
+
+								if ( $moreData && ref $moreData ) {
+									$album->{about} = $moreData->{about} if $moreData->{about};
+									$album->{band_id} = $moreData->{band_id} if $moreData->{band_id};
+									$album->{credits} = $moreData->{credits} if $moreData->{credits};
+									$album->{art_lg_url} ||= Plugins::Bandcamp::API::get_artwork_url_from_id($moreData->{art_id}) if $moreData->{art_id};
+									$album->{release_date} = $moreData->{release_date} if $moreData->{release_date};
+								}
+							}
+
+							if ( $html =~ /^\s+packages: (\[.*\]),\s*$/m ) {
+								my $moreData = eval { from_json( Encode::encode('utf8', $1) ) };
+
+								if ( $moreData && ref $moreData && (my ($item) = grep { $_->{album_id} } @$moreData) ) {
+									$album->{album_id} ||= $item->{album_id};
+								}
+							}
+						}
+
+						$album->{tracks} = [ map {
+							$_->{number} = $_->{track_num};
+							$_->{streaming_url} = $_->{file};
+							Plugins::Bandcamp::API::cache_track_info($_, $album);
+						} @$trackData ];
+
+						$result = [$album];
+					}
+				}
+			}
+
+			$cache->set( $album_url, $result, USER_CACHE_TTL ) if scalar @$result;
+
+			return $result;
+		},
+		$params,
+		$album_url,
+		$album_url
+	);
+}
+
 sub get_fan_page {
 	my ( $client, $cb, $params, $args ) = @_;
 
@@ -66,9 +165,7 @@ sub get_fan_page {
 	my $cache_key = "fanpage/$fan";
 
 	_get($client,
-		sub {
-			$cb->(shift);
-		},
+		$cb,
 		sub {
 			my $tree   = shift;
 			my $result = {};

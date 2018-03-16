@@ -574,35 +574,30 @@ sub get_artist_albums {
 sub get_album {
 	my ($client, $cb, $params, $args) = @_;
 
-	Plugins::Bandcamp::API::get_album_info($client,
+	Plugins::Bandcamp::Scraper::get_album_info($client,
 		sub {
 			my $albumInfo = shift;
 
-			$log->error( Data::Dump::dump($albumInfo) ) if ref $albumInfo ne 'HASH';
+			$log->error( Data::Dump::dump($albumInfo) ) if main::INFOLOG && ref $albumInfo ne 'HASH';
 
-			return [ {
+			return $cb->([ {
 				name => $albumInfo->{error},
-				type => 'text',
-			} ] if $albumInfo->{error};
+				type => 'textarea',
+			} ], @_) if $albumInfo->{error};
 
 			$albumInfo->{artist} ||= $args->{artist};
 
 			my $items = [];
 
 			push @$items, {
-				name => (
-					cstring($client, $albumInfo->{downloadable}
-						? ($albumInfo->{downloadable} == 1 ? 'PLUGIN_BANDCAMP_FREE' : 'PLUGIN_BANDCAMP_PAID')
-						: 'PLUGIN_BANDCAMP_NO_DOWNLOAD'
-					)
-				),
+				name => cstring($client, 'PLUGIN_BANDCAMP_PAID'),
 				type => 'text',
 			},
 			{
 				name => $albumInfo->{url},
 				type => 'text',
 				weblink => $albumInfo->{url},
-			} if ($albumInfo->{downloadable} && $albumInfo->{url});
+			} if $albumInfo->{url};
 
 			push @$items, {
 				name => cstring($client, 'PLUGIN_BANDCAMP_ABOUT'),
@@ -668,8 +663,13 @@ sub get_track {
 sub get_item_info_by_url {
 	my ($client, $cb, $params, $args) = @_;
 
+	# we're going to grab album tracks from the albums page, as the API wouldn't give us all playable items
+	if ($args->{album_url} =~ m|bandcamp\.com/album/|) {
+		get_album($client, $cb, $params, $args);
+	}
+
 	# "Get more..." link
-	if ($args->{album_url} =~ m|bandcamp\.com/+tag/.*?\?page=|) {
+	elsif ($args->{album_url} =~ m|bandcamp\.com/+tag/.*?\?page=|) {
 		get_tag_items($client, $cb, $params, {
 			tag_url => $args->{album_url}
 		});
