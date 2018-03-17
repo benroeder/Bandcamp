@@ -69,6 +69,16 @@ sub initPlugin {
 		$cache->clear;
 	}, 'identity_token');
 
+	$prefs->setValidate({
+		validator => sub {
+			# if there's a slash, the user likely pasted the full path instead of the username only
+			return if $_[1] =~ m|/|;
+			return 1;
+		}
+	}, 'username');
+
+	($prefs->get('username') || '') =~ m|/| && $log->error("Invalid username: " . $prefs->get('username'));
+
 	Plugins::Bandcamp::API::init( $cache, $class->_pluginDataFor('dk') );
 	Plugins::Bandcamp::Scraper::init( $cache );
 	Plugins::Bandcamp::Search::init( $cache );
@@ -301,6 +311,7 @@ sub get_fan_page {
 			my $data = shift;
 
 			if ( $args->{fan}  && $args->{fan} eq ($prefs->get('username') || '') && (my $id = $cache->get('user_id_' . $args->{fan})) ) {
+				main::INFOLOG && $log->info("Storing Fan ID for ourselves in prefs for faster access: $id");
 				$prefs->set('fan_id', $id);
 			}
 
@@ -377,6 +388,8 @@ sub get_collection_items {
 		: '';
 
 	$fan_id ||= $cache->get('user_id_' . $args->{fan});
+
+	main::INFOLOG && $log->info("Using Fan ID '$fan_id' for user '$args->{fan}'");
 
 	if ($fan_id) {
 

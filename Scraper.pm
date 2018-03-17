@@ -183,6 +183,7 @@ sub get_fan_page {
 					$fan_data = $data->{fan_data} if !($fan_data && $fan_data->{fan_id});
 
 					if ($fan_data && (my $fan_id = $fan_data->{fan_id}) ) {
+						main::INFOLOG && $log->info("Caching Fan ID for '$fan': $fan_id");
 						$cache->set('user_id_' . $fan, $fan_id, META_CACHE_TTL);
 					}
 				}
