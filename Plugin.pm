@@ -59,7 +59,8 @@ sub initPlugin {
 
 		my $cookies = Slim::Networking::Async::HTTP->cookie_jar;
 		if ($new) {
-			$new =~ s/^identity=//;
+			# XXX - not working?
+			$new =~ s/^identity[:=]//;
 			$cookies->set_cookie(0, 'identity', $new, '/', 'bandcamp.com');
 		}
 		else {
@@ -353,6 +354,7 @@ sub get_fan_page {
 						&& ($args->{fan} || $params->{fan} || '') eq ($prefs->get('username') || '')
 					) {
 						splice(@$items, 1, 0, {
+							type => 'playlist',
 							name => cstring($client, 'PLUGIN_BANDCAMP_MUSIC_FEED'),
 							url  => \&music_feed,
 						})
@@ -450,6 +452,7 @@ sub music_feed {
 				artwork        => 1,
 				artist         => 1,
 				album          => 1,
+				params         => $params,
 			});
 
 			$cb->($items);
@@ -500,6 +503,7 @@ sub get_weekly_show {
 				no_tracknumber => 1,
 				artwork        => 1,
 				artist         => 1,
+				params         => $params,
 			});
 
 			my $items = [{
@@ -691,7 +695,9 @@ sub get_album {
 				}
 			}
 
-			push @$items, @{ track_list($client, $albumInfo) };
+			push @$items, @{ track_list($client, $albumInfo, {
+				params => $params,
+			}) };
 
 			$cb->( $items, @_ );
 		},
@@ -712,6 +718,8 @@ sub get_track {
 				artist => $args->{artist},
 				url    => $args->{album_url},
 				large_art_url => $args->{art_lg_url} || $args->{large_art_url},
+			},{
+				params => $params,
 			});
 
 			# sometimes we only want the track-information, but not the track itself
@@ -1002,6 +1010,9 @@ sub album_list {
 sub track_list {
 	my ($client, $items, $args) = @_;
 
+	# this is ugly... for whatever reason the EN/Classic skins can't handle tracks with an items element
+	my $simpleTracks = ($args->{params} && $args->{params}->{isWeb} && preferences('server')->get('skin') =~ /Classic|EN/i) ? 1 : 0;
+
 	my $tracks = [];
 	foreach my $track (@{$items->{tracks}}) {
 		$track = Plugins::Bandcamp::API::cache_track_info($track, $items);
@@ -1078,20 +1089,31 @@ sub track_list {
 		} if $track->{duration};
 
 		my $title = ($track->{streaming_url} ? '' : '* ') . ((defined $track->{number} && !$args->{no_tracknumber}) ? $track->{number} . '. ' : '') . $track->{title};
-		push @$tracks, {
-#			type  => 'link',
-			name  => $title,
-			line1 => $args->{artist} && $title,
-			line2 => $args->{artist} && $track->{artist} . ($args->{album} ? ($args->{artist} ? ' - ' : '') . $track->{album} : ''),
-			play  => $track->{streaming_url},
-			image => $args->{artwork} && ($track->{art_lg_url} || $track->{large_art_url}),
-			items => $trackinfo,
-			on_select   => $track->{streaming_url} ? 'play' : undef,
-			playall     => 1,
-			passthrough => [{
-				track_id => $track->{track_id}
-			}]
-		};
+
+		if ($simpleTracks) {
+			push @$tracks, {
+				type  => $track->{streaming_url} ? 'audio' : undef,
+				name  => $title,
+				url   => $track->{streaming_url},
+				image => $args->{artwork} && ($track->{art_lg_url} || $track->{large_art_url}),
+				playall => 1,
+			};
+		}
+		else {
+			push @$tracks, {
+				name  => $title,
+				line1 => $args->{artist} && $title,
+				line2 => $args->{artist} && $track->{artist} . ($args->{album} ? ($args->{artist} ? ' - ' : '') . $track->{album} : ''),
+				play  => $track->{streaming_url},
+				image => $args->{artwork} && ($track->{art_lg_url} || $track->{large_art_url}),
+				items => $trackinfo,
+				on_select   => $track->{streaming_url} ? 'play' : undef,
+				playall     => 1,
+				passthrough => [{
+					track_id => $track->{track_id}
+				}]
+			};
+		}
 	}
 
 	return $tracks;
