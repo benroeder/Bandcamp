@@ -179,8 +179,7 @@ sub get_fan_page {
 
 				# extract the fan_id if possible
 				if ( my $fan = $args->{fan} ) {
-					my $fan_data = $data->{current_fan};
-					$fan_data = $data->{fan_data} if !($fan_data && $fan_data->{fan_id});
+					my $fan_data = $data->{fan_data};
 
 					if ($fan_data && (my $fan_id = $fan_data->{fan_id}) ) {
 						main::INFOLOG && $log->info("Caching Fan ID for '$fan': $fan_id");
