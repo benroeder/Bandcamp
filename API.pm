@@ -25,7 +25,7 @@ use constant CACHE_TTL     => 3600 * 12;
 use constant META_CACHE_TTL=> 86400 * 30;
 use constant USER_CACHE_TTL=> 60 * 5;
 
-use constant MAX_FEED_ITEMS => 50;
+use constant MAX_FEED_ITEMS => 100;
 
 my $log = logger('plugin.bandcamp');
 
@@ -79,7 +79,8 @@ sub get_fan_collection {
 sub fan_dash_feed_updates {
 	my ( $client, $cb, $params, $args ) = @_;
 
-	$args->{story_date} ||= time();
+	# we'll default to a "rounded" now - rounded to 100s, which effectively gives us caching for shy of two minutes
+	$args->{story_date} ||= int(time()/USER_CACHE_TTL) * USER_CACHE_TTL;
 
 	_post(
 		sub {
@@ -142,7 +143,8 @@ sub fan_dash_feed_updates {
 			_url => API_URL_MUSIC_FEED,
 			_ct => 'application/x-www-form-urlencoded',
 			_cacheKey => 'music_feed_' . $args->{fan_id} . $args->{story_date},
-			_cacheTTL => USER_CACHE_TTL,
+			# data is cached with timestamp, therefore we can keep this "forever", cache key would change if needed
+			_cacheTTL => META_CACHE_TTL,
 			data => sprintf('fan_id=%s&older_than=%s', $args->{fan_id}, $args->{story_date}),
 		}
 	);

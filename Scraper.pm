@@ -177,33 +177,33 @@ sub get_fan_page {
 
 				$data = eval { from_json( Encode::encode( 'utf8', $data) ) };
 
-				# extract the fan_id if possible
-				if ( my $fan = $args->{fan} ) {
-					my $fan_data = $data->{fan_data};
-
-					if ($fan_data && (my $fan_id = $fan_data->{fan_id}) ) {
-						main::INFOLOG && $log->info("Caching Fan ID for '$fan': $fan_id");
-						$cache->set('user_id_' . $fan, $fan_id, META_CACHE_TTL);
-					}
-				}
-
 				if ($@ || !$data) {
 					$log->error($@);
 				}
-				elsif ( my $items = $data->{item_cache} ) {
-					foreach my $type ( qw(collection wishlist) ) {
-						if ( $items->{$type} && ref $items->{$type} && keys %{$items->{$type}} ) {
-							$result->{$type} = [ sort {
-								uc($a->{title}) cmp uc($b->{title})
-							} @{ Plugins::Bandcamp::API::parse_album_list([ values %{$items->{$type}} ]) } ];
+				else {
+					# extract the fan_id if possible
+					if ( (my $fan_data = $data->{fan_data}) && (my $fan = $args->{fan}) ) {
+						if ( my $fan_id = $fan_data->{fan_id} ) {
+							main::INFOLOG && $log->info("Caching Fan ID for '$fan': $fan_id");
+							$cache->set('user_id_' . $fan, $fan_id, META_CACHE_TTL);
 						}
 					}
 
-					foreach my $type ( qw(following_bands following_fans followers) ) {
-						if ( $items->{$type} && ref $items->{$type} && keys %{$items->{$type}} ) {
-							$result->{$type} = [ sort {
-								uc($a->{name}) cmp uc($b->{name})
-							}  @{ Plugins::Bandcamp::API::parse_artist_list([ values %{$items->{$type}} ]) } ];
+					if ( my $items = $data->{item_cache} ) {
+						foreach my $type ( qw(collection wishlist) ) {
+							if ( $items->{$type} && ref $items->{$type} && keys %{$items->{$type}} ) {
+								$result->{$type} = [ sort {
+									uc($a->{title}) cmp uc($b->{title})
+								} @{ Plugins::Bandcamp::API::parse_album_list([ values %{$items->{$type}} ]) } ];
+							}
+						}
+
+						foreach my $type ( qw(following_bands following_fans followers) ) {
+							if ( $items->{$type} && ref $items->{$type} && keys %{$items->{$type}} ) {
+								$result->{$type} = [ sort {
+									uc($a->{name}) cmp uc($b->{name})
+								}  @{ Plugins::Bandcamp::API::parse_artist_list([ values %{$items->{$type}} ]) } ];
+							}
 						}
 					}
 				}
