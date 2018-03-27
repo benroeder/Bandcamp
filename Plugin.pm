@@ -447,6 +447,11 @@ sub music_feed {
 		sub {
 			my $result = shift;
 
+			if ($result->{error}) {
+				$cb->($result->{error});
+				return;
+			}
+
 			my $items = track_list($client, $result, {
 				no_tracknumber => 1,
 				artwork        => 1,

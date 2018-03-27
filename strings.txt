@@ -168,6 +168,10 @@ PLUGIN_BANDCAMP_IDENTITY_TOKEN_DESC
 	DE	Das Identitäts-Cookie erlaubt es, auf Inhalte Zugriffe zu erhalten, die sonst nicht verfügbar sind. Es muss im Browser, in welchem du dich bei bancamp.com angemeldet hast, exportiert werden. Es hat die Form "identity=6%0909ddd7..;", mit einer langen Zeichenkette.
 	EN	The identity cookie gives you access to resource which otherwise would not be available to you. You have to export it from your browser with which you're logged in to bandcamp.com. It looks like "identity=6%0909ddd7..;" with a large number of characters.
 
+PLUGIN_BANDCAMP_IDENTITY_TOKEN_INVALID
+	DE	Es trat ein Fehler beim Abruf der Daten auf. Bitte überprüfen Sie das Identitäts-Cookie in den Plugin-Einstellungen.
+	EN	There was an error accessing the data servers. Please double-check or re-set your identity cookie in the plugin settings.
+
 PLUGIN_BANDCAMP_ALBUM_NOT_FOUND
 	DE	Das gewünschte Album wurde nicht gefunden. Dies kann vorkommen, wenn ein Verkäufer ein Album vom Verkauf zurückgezogen hat. Solche Alben sind auf bandcamp.com mit "PRIVATE" gekennzeichnet.
 	EN	This album was not found. This can happen if an album as been removed from public view. Such albums are labeled "PRIVATE" on bandcamp.com.

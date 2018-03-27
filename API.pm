@@ -134,9 +134,28 @@ sub fan_dash_feed_updates {
 				return;
 			}
 
-			$cb->({
-				tracks => $feed,
-			});
+			if (!scalar @$feed && ref $result eq 'ARRAY' ) {
+				# we'd get a "400 bad request" if the identity token was invalid
+				if (scalar @$result == 1 && ($result->[0]->{name} || '') =~ /Unknown error.*400/) {
+					$feed = [{
+						type => 'text',
+						name => Slim::Utils::Strings::cstring($client, 'PLUGIN_BANDCAMP_IDENTITY_TOKEN_INVALID')
+					}];
+					$log->error($feed->[0]->{name});
+				}
+				else {
+					$feed = $result;
+				}
+
+				$cb->({
+					error => $feed
+				});
+			}
+			else {
+				$cb->({
+					tracks => $feed,
+				});
+			}
 		},
 		$params,
 		{
@@ -663,7 +682,7 @@ sub ecb {
 	my ($http, $error) = @_;
 
 	my $params = $http->params('params');
-	my $cb     = $params->{cb};
+	my $cb     = $http->params('cb');
 
 	$log->warn("error: $error");
 	main::DEBUGLOG && $log->is_debug && $log->debug(Data::Dump::dump($http));
