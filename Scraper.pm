@@ -436,6 +436,105 @@ sub search_fans {
 	);
 }
 
+sub search {
+	my ( $client, $cb, $args ) = @_;
+
+	my $search = $args->{search};
+	my $params = $args->{params};
+
+	_get($client,
+		$cb,
+		sub {
+			my $tree   = shift;
+			my $result = [];
+
+			my @items = $tree->look_down("_tag", "li", "class", qr/searchresult (?:track|album|band)/);
+
+			foreach my $item (@items) {
+				my $class = $item->attr('class');
+				if ($class =~ /\btrack\b/) {
+					my $track_item = {};
+
+					my $track_details = $item->look_down("_tag", "div", "class", "heading");
+					foreach ($track_details->content_list) {
+						next unless blessed($_) && $_->attr('href') =~ /bandcamp\.com/ && ref $_->content eq 'ARRAY';
+
+						$track_item->{name} = $_->content->[0];
+						$track_item->{name} =~ s/^\s*|\s*$//g;
+
+						$track_item->{offsite_url} = $_->attr('href');
+
+						if ( $track_item->{offsite_url} =~ m|search_item_id=(\d+)| ) {
+							$track_item->{track_id} = $1;
+						}
+
+						$track_item->{offsite_url} =~ s/\?.*//;
+
+						next unless $track_item->{track_id};
+					}
+
+					if ( my $track_artist = $item->look_down("_tag", "div", "class", "subhead") ) {
+						$track_item->{artist} = $track_artist->content->[0];
+						$track_item->{artist} =~ s/.* by (.*?)/$1/;
+						$track_item->{artist} =~ s/^\s*|\s*$//g;
+					}
+
+					if ( my $track_img = $item->look_down("_tag", "img") ) {
+						$track_item->{art_lg_url} = $track_img->attr('src');
+						$track_item->{art_lg_url} =~ s/_7\./_5./;
+					}
+
+					push @$result, $track_item;
+				}
+				elsif ($class =~ /\balbum\b/) {
+					my $album_item = {};
+
+					my $album_details = $item->look_down("_tag", "div", "class", "heading");
+					foreach ($album_details->content_list) {
+						next unless blessed($_) && $_->attr('href') =~ /bandcamp\.com/ && ref $_->content eq 'ARRAY';
+
+						$album_item->{album} = $_->content->[0];
+						$album_item->{album} =~ s/^\s*|\s*$//g;
+
+						$album_item->{album_url} = $_->attr('href');
+
+						if ( $album_item->{album_url} =~ m|search_item_id=(\d+)| ) {
+							$album_item->{album_id} = $1;
+						}
+
+						$album_item->{album_url} =~ s/\?.*//;
+						$album_item->{url} = $album_item->{album_url};
+
+						next unless $album_item->{album_id};
+					}
+
+					if ( my $album_artist = $item->look_down("_tag", "div", "class", "subhead") ) {
+						$album_item->{artist} = $album_artist->content->[0];
+						$album_item->{artist} =~ s/^ by //;
+						$album_item->{artist} =~ s/^\s*|\s*$//g;
+					}
+
+					if ( my $album_img = $item->look_down("_tag", "img") ) {
+						$album_item->{art_lg_url} = $album_img->attr('src');
+					}
+
+					push @$result, $album_item;
+				}
+				elsif ($class =~ /\bband\b/) {
+					push @$result, _parse_band_element($item);
+				}
+			}
+
+			$cache->set( 'search_list' . $search, $result, CACHE_TTL ) if @$result;
+
+			return $result;
+		},
+		$params,
+		'search_list' . $search,
+		SEARCH_URL . $search,
+	);
+}
+
 sub search_artists {
 	my ( $client, $cb, $args ) = @_;
 
@@ -448,35 +547,9 @@ sub search_artists {
 			my $tree   = shift;
 			my $result = [];
 
-			my @bands = $tree->look_down("_tag", "li", "class", qr/searchresult band/);
-
-			foreach my $band (@bands) {
-				if ($band) {
-					my $band_item = {};
-
-					my $band_details = $band->look_down("_tag", "div", "class", "heading");
-					foreach ($band_details->content_list) {
-						next unless blessed($_) && $_->attr('href') =~ /bandcamp\.com/ && ref $_->content eq 'ARRAY';
-
-						$band_item->{name} = $_->content->[0];
-						$band_item->{name} =~ s/^\s*|\s*$//g;
-
-						$band_item->{offsite_url} = $_->attr('href');
-
-						if ( $band_item->{offsite_url} =~ m|search_item_id=(\d+)| ) {
-							$band_item->{band_id} = $1;
-						}
-
-						$band_item->{offsite_url} =~ s/\?.*//;
-
-						next unless $band_item->{band_id};
-					}
-
-					if ( my $band_img = $band->look_down("_tag", "img") ) {
-						$band_item->{art_lg_url} = $band_img->attr('src');
-					}
-
-					push @$result, $band_item;
+			foreach ( $tree->look_down("_tag", "li", "class", qr/searchresult band/) ) {
+				if ($_) {
+					push @$result, _parse_band_element($_);
 				}
 			}
 
@@ -488,6 +561,35 @@ sub search_artists {
 		'artist_list' . $search,
 		SEARCH_URL . $search,
 	);
+}
+
+sub _parse_band_element {
+	my $band = shift;
+	my $band_item = {};
+
+	my $band_details = $band->look_down("_tag", "div", "class", "heading");
+	foreach ($band_details->content_list) {
+		next unless blessed($_) && $_->attr('href') =~ /bandcamp\.com/ && ref $_->content eq 'ARRAY';
+
+		$band_item->{name} = $_->content->[0];
+		$band_item->{name} =~ s/^\s*|\s*$//g;
+
+		$band_item->{offsite_url} = $_->attr('href');
+
+		if ( $band_item->{offsite_url} =~ m|search_item_id=(\d+)| ) {
+			$band_item->{band_id} = $1;
+		}
+
+		$band_item->{offsite_url} =~ s/\?.*//;
+
+		next unless $band_item->{band_id};
+	}
+
+	if ( my $band_img = $band->look_down("_tag", "img") ) {
+		$band_item->{art_lg_url} = $band_img->attr('src');
+	}
+
+	return $band_item;
 }
 
 sub get_tag_items {

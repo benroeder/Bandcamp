@@ -41,9 +41,51 @@ sub search {
 
 	$search_results->{$client || ''} = {};
 
-	_search_artists($client, $cb, $params);
+	_search($client, $cb, $params);
 	_search_tags($client, $cb, $params);
 	_search_fans($client, $cb, $params);
+}
+
+sub _search {
+	my ($client, $cb, $params) = @_;
+
+	Plugins::Bandcamp::Scraper::search($client,
+		sub {
+			my ($items) = @_;
+
+			my $search = $params->{search};
+			add_recent_search($search) if ($search && scalar @$items);
+
+			my @results;
+
+			foreach (@$items) {
+				if ($_->{track_id}) {
+					push @results, {
+						name => $_->{name},
+						line1 => $_->{artist} && $_->{name},
+						line2 => $_->{artist} && $_->{artist},
+						url  => \&Plugins::Bandcamp::Plugin::get_track,
+						image=> $_->{art_lg_url},
+						passthrough => [{
+							track_id => $_->{track_id},
+							art_lg_url => $_->{art_lg_url}
+						}]
+					};
+					# push @results, @{ Plugins::Bandcamp::Plugin::track_list({ tracks => [$_] }) };
+				}
+				elsif ($_->{band_id}) {
+					push @results, @{ Plugins::Bandcamp::Plugin::artist_list({ results => [$_] }) };
+				}
+				elsif ($_->{album_id}) {
+					push @results, @{ Plugins::Bandcamp::Plugin::album_list($client, \&Plugins::Bandcamp::Plugin::get_album, { discography => [$_] }) };
+				}
+			}
+
+			$search_results->{$client || ''}->{'search'} = \@results;
+			_search_done($client, $cb);
+		},
+		$params,
+	);
 }
 
 sub search_artists {
@@ -146,20 +188,35 @@ sub _search_done {
 	my ($client, $cb) = @_;
 
 	return unless $search_results->{$client || ''}->{'tag_search'}
-		&& $search_results->{$client || ''}->{'artist_search'}
+		&& ($search_results->{$client || ''}->{'artist_search'} || $search_results->{$client || ''}->{'search'})
 		&& $search_results->{$client || ''}->{'fan_search'};
 
 	my $hasTags = scalar @{ $search_results->{$client || ''}->{'tag_search'} };
 
 	my $items = [
-		map {
+		( map {
 			if ($hasTags) {
 				$_->{name}  .= ' (' . cstring($client, 'ARTIST') . ')';
 				$_->{line1} .= ' (' . cstring($client, 'ARTIST') . ')' if $_->{line1};
 				$_->{image} ||= 'html/images/artists.png';
 			}
 			$_;
-		} @{ $search_results->{$client || ''}->{'artist_search'} }
+		} @{ $search_results->{$client || ''}->{'artist_search'} || [] } ),
+
+		( map {
+			my $pt = $_->{passthrough};
+			if ($pt->[0]->{album_id}) {
+				$_->{name}  .= ' (' . cstring($client, 'ALBUM') . ')';
+				$_->{line1} .= ' (' . cstring($client, 'ALBUM') . ')' if $_->{line1};
+				$_->{image} ||= 'html/images/albums.png';
+			}
+			elsif ($pt->[0]->{band_id}) {
+				$_->{name}  .= ' (' . cstring($client, 'ARTIST') . ')';
+				$_->{line1} .= ' (' . cstring($client, 'ARTIST') . ')' if $_->{line1};
+				$_->{image} ||= 'html/images/artists.png';
+			}
+			$_;
+		} @{ $search_results->{$client || ''}->{'search'} || [] } )
 	];
 
 	push @$items, map {
