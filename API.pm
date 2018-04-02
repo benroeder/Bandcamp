@@ -257,7 +257,7 @@ sub get_item_info_by_url {
 	my $url = $args->{url};
 
 	# Bandcamp usually doesn't use the leading www.
-	$url =~ s/(?:http?:\/\/|)www\.//;
+	$url =~ s/(?:https?:\/\/|)www\.//;
 
 	# some URLs come with an invalid http:http:// prefix
 	$url =~ s/^https?:https?:\/\///;

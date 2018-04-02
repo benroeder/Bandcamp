@@ -59,9 +59,9 @@ sub search_tags {
 sub get_album_info {
 	my ($client, $cb, $params, $args) = @_;
 
-	my $album_url = $args->{album_url};
+	my $album_url = $args->{album_url} || $args->{url};
 
-	main::DEBUGLOG && $log->debug("Getting tracks for album: $album_url");
+	main::INFOLOG && $log->info("Getting tracks for album: $album_url");
 
 	_get($client,
 		sub {
@@ -821,7 +821,7 @@ sub get_discovery {
 			}
 
 			if ( !$nocache && scalar @$items ) {
-				$cache->set($url . $client->id, $items, CACHE_TTL);
+				$cache->set($url . $client ? $client->id : 'xxx', $items, CACHE_TTL);
 			}
 
 			$cb->({

@@ -1057,6 +1057,7 @@ sub track_list {
 			url  => \&get_album,
 			passthrough => [{
 				album_id => $track->{album_id},
+				album_url => $track->{album_url},
 				tracks   => 1,
 			}]
 		} if $track->{album_id};
