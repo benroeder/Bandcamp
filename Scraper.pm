@@ -821,7 +821,7 @@ sub get_discovery {
 			}
 
 			if ( !$nocache && scalar @$items ) {
-				$cache->set($url . $client ? $client->id : 'xxx', $items, CACHE_TTL);
+				$cache->set($url . ($client ? $client->id : 'xxx'), $items, CACHE_TTL);
 			}
 
 			$cb->({
