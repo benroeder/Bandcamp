@@ -98,7 +98,7 @@ sub get_album_info {
 						# if we found track data, we'll continue
 						if ( $trackData && ref $trackData ) {
 							if ( $html =~ /var EmbedData = (\{.*?\});/s ) {
-								my $albumData = Encode::encode('utf8', $1);
+								my $albumData = $1;
 
 								if ($albumData =~ /album_title: "(.*?)"/) {
 									$album->{title} = $1;
