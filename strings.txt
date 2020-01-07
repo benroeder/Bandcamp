@@ -165,7 +165,7 @@ PLUGIN_BANDCAMP_IDENTITY_TOKEN
 	EN	Identity Cookie
 
 PLUGIN_BANDCAMP_IDENTITY_TOKEN_DESC
-	DE	Das Identitäts-Cookie erlaubt es, auf Inhalte Zugriffe zu erhalten, die sonst nicht verfügbar sind. Es muss im Browser, in welchem du dich bei bancamp.com angemeldet hast, exportiert werden. Es hat die Form "identity=6%0909ddd7..;", mit einer langen Zeichenkette.
+	DE	Das Identitäts-Cookie erlaubt es, auf Inhalte Zugriffe zu erhalten, die sonst nicht verfügbar sind. Es muss im Browser, in welchem du dich bei bandcamp.com angemeldet hast, exportiert werden. Es hat die Form "identity=6%0909ddd7..;", mit einer langen Zeichenkette.
 	EN	The identity cookie gives you access to resource which otherwise would not be available to you. You have to export it from your browser with which you're logged in to bandcamp.com. It looks like "identity=6%0909ddd7..;" with a large number of characters.
 
 PLUGIN_BANDCAMP_IDENTITY_TOKEN_INVALID
