@@ -522,7 +522,7 @@ sub get_weekly_show {
 				type => 'playlist',
 				name => cstring($client, 'PLUGIN_BANDCAMP_WEEKLY_SONGS'),
 				items => $tracks,
-				play  => $tracks,
+				play  => [ grep { $_ } map { $_->{play} } @$tracks ],
 			}];
 
 			$cb->($items);
