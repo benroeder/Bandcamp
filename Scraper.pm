@@ -219,137 +219,6 @@ sub get_fan_page {
 	);
 }
 
-=pod replaced with API::get_weekly_shows
-sub get_weekly_shows {
-	my ( $client, $cb, $params ) = @_;
-
-	if ( my $cached = $cache->get('weekly_show_rendered') ) {
-		$cb->($cached);
-		return;
-	}
-
-	_get($client,
-		sub {
-			my $items = shift;
-
-			# XXX - limit to the latest 4-5 shows?
-
-			my $tracks = {};
-			foreach my $show ( @$items ) {
-				foreach my $track ( @{ $show->{tracks} }) {
-					$tracks->{$track->{track_id}} = $track;
-				}
-			}
-
-			_get_weekly_track_infos($items, $tracks, [keys %$tracks], sub {
-				$cache->set( 'weekly_show_rendered', $items, 3600 ) if $items && @$items;
-				$cb->($items) if $cb;
-			});
-		},
-		sub {
-			my $tree   = shift;
-			my $result = [];
-
-			my $featured = $tree->look_down("_tag", "div", "id", "pagedata");
-
-			if ($featured) {
-				my $data = $featured->attr('data-blob');
-
-				$data = eval { from_json( Encode::encode( 'utf8', $data) ) };
-
-				if ($@ || !$data) {
-					$log->error($@);
-				}
-				elsif ( $data->{bcw_data} && $data->{bcw_seq} ) {
-
-					foreach my $index ( @{$data->{bcw_seq}} ) {
-						if ( my $show = $data->{bcw_data}->{$index->{id}} ) {
-							my $tracks = [];
-
-							foreach ( @{$show->{tracks}} ) {
-								my $art = $_->{track_image} || {};
-
-								push @$tracks, {
-									album_id => $_->{album_id},
-									album    => $_->{album_title},
-									album_url=> $_->{album_url},
-									artist   => $_->{artist},
-									band_id  => $_->{band_id},
-									title    => $_->{title},
-									track_id => $_->{track_id},
-									url      => $_->{track_url},
-									large_art_url => Plugins::Bandcamp::API::get_artwork_url_from_id($_->{track_art_id}) || $art->{thumb}->{url} || $art->{small}->{url} || $art->{screen}->{url},
-								};
-
-								# small artwork version
-								if ( $art->{thumb}->{url} && $art->{small}->{url} && $art->{thumb}->{url} ne $art->{small}->{url} ) {
-									$cache->set('small_' . $art->{thumb}->{url}, $art->{small}->{url}, META_CACHE_TTL);
-								}
-
-								# full size smallwork
-								if ( $art->{screen}->{url} && $art->{thumb}->{url} && $art->{screen}->{url} ne $art->{thumb}->{url} ) {
-									$cache->set('full_' . $art->{thumb}->{url}, $art->{screen}->{url}, META_CACHE_TTL);
-								}
-							}
-
-							$index->{date} =~ /^(\d+) (\w+) (\d+)/;
-							my $date = "$1 $2 $3";
-
-							push @$result, {
-								date  => $date,
-								subtitle => $show->{subtitle},
-								description => $show->{desc},
-								large_art_url => Plugins::Bandcamp::API::get_artwork_url_from_id($show->{show_image_id}, 0, '') || $show->{show_image}->{url} || $show->{show_screen_image}->{url},
-								tracks => $tracks,
-							};
-
-							if ( $show->{show_image}->{url} && $show->{show_screen_image}->{url} && $show->{show_image}->{url} ne $show->{show_screen_image}->{url} ) {
-								$cache->set('full_' . $show->{show_image}->{url}, $show->{show_screen_image}->{url}, META_CACHE_TTL);
-							}
-						}
-					}
-
-				}
-
-				$cache->set( 'weekly_show', $result, USER_CACHE_TTL ) if $result && @$result;
-			}
-
-			return $result;
-		},
-		$params,
-		'weekly_show',
-		BASE_URL
-	);
-}
-
-sub _get_weekly_track_infos {
-	my ($items, $tracks, $trackIds, $cb) = @_;
-
-	$tracks->{track_id} = join(',', splice(@$trackIds, 0, 50));
-
-	Plugins::Bandcamp::API::get_track_info($tracks, sub {
-		my $trackInfo = shift;
-
-		foreach my $show ( @$items ) {
-			foreach my $track ( @{ $show->{tracks} }) {
-				if (my $details = $trackInfo->{$track->{track_id}}) {
-					foreach (qw(downloadable album_id about credits lyrics duration streaming_url)) {
-						$track->{$_} ||= $details->{$_} if $details->{$_};
-					}
-				}
-			}
-		}
-
-		if (scalar @$trackIds) {
-			_get_weekly_track_infos($items, $tracks, $trackIds, $cb);
-		}
-		else {
-			$cb->() if $cb;
-		}
-	});
-}
-=cut
-
 sub get_tag_list {
 	my ( $client, $cb, $params ) = @_;
 
@@ -358,6 +227,7 @@ sub get_tag_list {
 		sub {
 			my $tree   = shift;
 			my $result = [];
+			my %seen;
 
 			my @categories = $tree->look_down("_tag", "div", "class", qr/tagcloud/);
 
@@ -367,8 +237,11 @@ sub get_tag_list {
 				foreach ($tag_cloud->content_list) {
 					next unless blessed($_) && $_->attr('class') =~ /\btag\b/ && ref $_->content eq 'ARRAY';
 
+					my $name = $_->content->[0];
+					next if $seen{$name}++;
+
 					push @$result, {
-						name  => $_->content->[0],
+						name  => $name,
 						url   => $_->attr('href'),
 						cloud => $type,
 					}
@@ -605,77 +478,39 @@ sub get_tag_items {
 			my $tree   = shift;
 			my $result = [];
 
-			my $results = $tree->look_down("_tag", "div", "class", "results");
+			my $collection = $tree->look_down("_tag", "div", "id", "pagedata");
 
-			if ($results) {
-				my $item_list = $results->look_down("_tag", "ul", "class", "item_list");
+			if ($collection) {
+				my $data = $collection->attr('data-blob');
 
-				foreach ($item_list->content_list) {
+				$data = eval { from_json( Encode::encode( 'utf8', $data) ) };
 
-					my $img = $_->look_down('_tag', 'div', 'class', 'tralbum-art-container art artHidden')->attr('onclick');
-					if ($img) {
-						$img =~ /.*(http.*)\).*/;
-						$img = $1 || '';
-					}
-
-					my $url = $_->find('a')->attr('href');
-
-					my $title = $_->find_by_attribute('class', 'itemtext')->content;
-					$title = ref $title eq 'ARRAY' ? $title->[0] : undef;
-
-					my $artist = $_->find_by_attribute('class', 'itemsubtext')->content;
-					$artist = ref $artist eq 'ARRAY' ? $artist->[0] : undef;
-
-					next unless ($title || $artist) && $url;
-
-					my $meta = {
-						title  => $title,
-						artist => $artist,
-						large_art_url => $img,
-						url    => $url,
-					};
-
-					# pre-fetch track information
-					if ($url =~ m|/track/|) {
-						Plugins::Bandcamp::API::get_item_info_by_url($client,
-							sub {
-								my ($items) = shift;
-
-								if ($items->{track_id}) {
-									Plugins::Bandcamp::API::get_track_info($items);
-								}
-							},
-							$params,
-							$meta,
-						);
-					}
-
-					push @$result, $meta;
+				if ($@ || !$data || !ref $data) {
+					$log->error($@);
 				}
+				else {
+					if ($data->{hub} && $data->{hub}->{tabs} && (my $tabs = $data->{hub}->{tabs})) {
+						foreach my $tab (@$tabs) {
+							if ($tab && ref $tab && $tab->{dig_deeper} && (my $results = $tab->{dig_deeper}->{results})) {
+								foreach my $filteredResult (values %$results) {
+									if ($filteredResult && ref $filteredResult && (my $items = $filteredResult->{items})) {
+										foreach (@$items) {
+											next unless $_->{item_type} && $_->{item_type} =~ /^[atp]$/;
 
-				# add item to get more albums if available
-				my $more = $tree->look_down('_tag', 'span', 'class', 'nextprev next');
+											my $meta = {
+												artist => $_->{artist},
+												band_id => $_->{band_id},
+												title  => $_->{title},
+												large_art_url => Plugins::Bandcamp::API::get_artwork_url_from_id($_->{art_id}),
+												url    => $_->{tralbum_url},
+											};
 
-				if ( $more && (my $url = $more->find('a')->attr('href')) ) {
-
-					my $uri = URI->new($args->{tag_url});
-					my $params = $uri->query_form_hash;
-					delete $params->{page};
-
-					my $pageUri = URI->new($url);
-
-					foreach (keys %{ $pageUri->query_form_hash }) {
-						$params->{$_} = $pageUri->query_form_hash->{$_};
-					}
-					$uri->query_form( %$params );
-
-					$url = $uri->as_string;
-					$url = BASE_URL . $url if $url =~ m|^/|;
-
-					push @$result, {
-						title => 'PLUGIN_BANDCAMP_MORE_MATCHES',
-						url   => $url,
-						type  => 'link',
+											push @$result, $meta;
+										}
+									}
+								}
+							}
+						}
 					}
 				}
 
@@ -713,7 +548,7 @@ sub get_sales_feed {
 
 				foreach ( reverse @{$event->{items}} ) {
 					# we only want packages with artwork, albums and tracks
-					next unless $_->{item_type} && $_->{item_type} =~ /^[atp]$/;
+					next unless $_->{item_type} && $_->{item_type} eq 'a'; # =~ /^[atp]$/;
 
 					my $meta = {
 						artist => $_->{artist_name},
@@ -722,19 +557,19 @@ sub get_sales_feed {
 						url    => Plugins::Bandcamp::API::get_complete_url($_->{url}) || Plugins::Bandcamp::API::get_url_from_hints($_->{url_hints}),
 					};
 
-					if ($_->{item_type} eq 't') {
-						Plugins::Bandcamp::API::get_item_info_by_url($client,
-							sub {
-								my ($items) = shift;
+					# if ($_->{item_type} eq 't') {
+					# 	Plugins::Bandcamp::API::get_item_info_by_url($client,
+					# 		sub {
+					# 			my ($items) = shift;
 
-								if ($items->{track_id}) {
-									Plugins::Bandcamp::API::get_track_info($items);
-								}
-							},
-							$params,
-							$meta,
-						);
-					}
+					# 			if ($items && ref $items && ref $items eq 'HASH' && $items->{track_id}) {
+					# 				Plugins::Bandcamp::API::get_track_info($items);
+					# 			}
+					# 		},
+					# 		$params,
+					# 		$meta,
+					# 	);
+					# }
 
 					next if $seen{$meta->{url}};
 

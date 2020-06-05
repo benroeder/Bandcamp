@@ -437,12 +437,14 @@ sub get_track_info {
 		sub {
 			my $items = shift;
 
-			if ($items->{track_id}) {
-				$items = cache_track_info($items, $args);
-			}
-			else {
-				foreach ( keys %$items ) {
-					cache_track_info($items->{$_}, $args->{$_});
+			if ($items && ref $items && ref $items eq 'HASH') {
+				if ($items->{track_id}) {
+					$items = cache_track_info($items, $args);
+				}
+				else {
+					foreach ( keys %$items ) {
+						cache_track_info($items->{$_}, $args->{$_});
+					}
 				}
 			}
 

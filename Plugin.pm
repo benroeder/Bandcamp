@@ -208,14 +208,14 @@ sub handleFeed {
 				s => 'top'
 			}],
 		},
-		{
-			name => cstring($client, 'PLUGIN_BANDCAMP_STAFF_PICKS'),
-			type => 'link',
-			url  => \&get_discovery,
-			passthrough => [{
-				s => 'pic'
-			}],
-		},
+		# {
+		# 	name => cstring($client, 'PLUGIN_BANDCAMP_STAFF_PICKS'),
+		# 	type => 'link',
+		# 	url  => \&get_discovery,
+		# 	passthrough => [{
+		# 		s => 'pic'
+		# 	}],
+		# },
 		{
 			name => cstring($client, 'PLUGIN_BANDCAMP_NEW_ARRIVALS'),
 			type => 'link',
