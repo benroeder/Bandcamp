@@ -25,8 +25,9 @@ my $log = Slim::Utils::Log->addLogCategory( {
 my $prefs = preferences('plugin.bandcamp');
 
 use constant PLUGIN_TAG       => 'bandcamp';
-use constant STREAM_URL_REGEX => qr/(?:bcbits|bandcamp)\.com\/(?:download\/track|stream\/[a-z0-9]+\/|stream_redirect\b)/i;
-use constant IMAGES_URL_REGEX => qr/f0\.bcbits\.com\/(?:img|z)\//;
+use constant PAGE_URL_REGEX   => qr{^https?://(?:[a-z0-9-]+\.)?bandcamp\.com/}i;
+use constant STREAM_URL_REGEX => qr{(?:bcbits|bandcamp)\.com/(?:download/track|stream/[a-z0-9]+/|stream_redirect\b)}i;
+use constant IMAGES_URL_REGEX => qr{f0\.bcbits\.com/(?:img|z)/};
 use constant CACHE_TTL        => 3600 * 12;
 use constant MAX_RECENT_ITEMS => 50;
 use constant RECENT_CACHE_TTL => 'never';
@@ -91,6 +92,8 @@ sub initPlugin {
 		is_app => 1,
 		weight => 1,
 	);
+
+	Slim::Player::ProtocolHandlers->registerURLHandler(PAGE_URL_REGEX, __PACKAGE__) if Slim::Player::ProtocolHandlers->can('registerURLHandler');
 
 	Slim::Formats::RemoteMetadata->registerProvider(
 		match => STREAM_URL_REGEX,
@@ -1123,6 +1126,14 @@ sub track_list {
 	}
 
 	return $tracks;
+}
+
+sub explodePlaylist {
+	my ($class, $client, $url, $cb) = @_;
+
+	get_item_info_by_url( $client, sub {
+		$cb->([ map { $_->{'play'} // () } @{$_[0]} ]);
+	}, {}, { 'url' => $url } );
 }
 
 
