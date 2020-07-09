@@ -93,7 +93,10 @@ sub initPlugin {
 		weight => 1,
 	);
 
-	Slim::Player::ProtocolHandlers->registerURLHandler(PAGE_URL_REGEX, __PACKAGE__) if Slim::Player::ProtocolHandlers->can('registerURLHandler');
+	if (Slim::Player::ProtocolHandlers->can('registerURLHandler')) {
+		require Plugins::Bandcamp::ProtocolHandler;
+		Slim::Player::ProtocolHandlers->registerURLHandler(PAGE_URL_REGEX, "Plugins::Bandcamp::ProtocolHandler");
+	}
 
 	Slim::Formats::RemoteMetadata->registerProvider(
 		match => STREAM_URL_REGEX,
@@ -1127,15 +1130,6 @@ sub track_list {
 
 	return $tracks;
 }
-
-sub explodePlaylist {
-	my ($class, $client, $url, $cb) = @_;
-
-	get_item_info_by_url( $client, sub {
-		$cb->([ map { $_->{'play'} // () } @{$_[0]} ]);
-	}, {}, { 'url' => $url } );
-}
-
 
 sub _cleanup_multiline {
 	my $text = shift;
