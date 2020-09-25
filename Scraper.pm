@@ -82,54 +82,43 @@ sub get_album_info {
 			my $tree   = shift;
 			my $result = [];
 
-			my $section = $tree->look_down("_tag", "div", "id", "pgBd");
+			my $section = $tree->look_down("_tag", "head");
 
 			if ($section) {
 				my @scripts = $section->look_down("_tag", "script");
 				foreach (@scripts) {
 					my $html = $_->as_HTML;
 
-					if ($html =~ /var TralbumData\b/ && $html =~ /var EmbedData\b/ && $html =~ /^\s+trackinfo: (\[.*\]),\s*$/m) {
-						my $trackData = eval { from_json( Encode::encode('utf8', $1) ) };
+					if ($html =~ s/.*data-tralbum="([^"]+)".*/$1/) {
+						$html =~ s/&quot;/"/sg;
+						my $info = eval { from_json( Encode::encode('utf8', $html) ) };
+
 						my $album = {
 							url => $album_url
 						};
 
+						my $trackData = $info->{trackinfo};
+
 						# if we found track data, we'll continue
 						if ( $trackData && ref $trackData ) {
-							if ( $html =~ /var EmbedData = (\{.*?\});/s ) {
-								my $albumData = $1;
+							if ( my $albumInfo = $info->{current} ) {
+								$album->{title} = $albumInfo->{title};
+								$album->{artist} = $albumInfo->{artist};
+								$album->{art_lg_url} = Plugins::Bandcamp::API::get_artwork_url_from_id($albumInfo->{art_id});
 
-								if ($albumData =~ /album_title: "(.*?)"/) {
-									$album->{title} = $1;
-								}
-
-								if ($albumData =~ /artist: "(.*?)"/) {
-									$album->{artist} = $1;
-								}
-
-								if ($albumData =~ /art_id: (\d+)/) {
-									$album->{art_lg_url} = Plugins::Bandcamp::API::get_artwork_url_from_id($1);
-								}
+								$album->{about} = $albumInfo->{about} if $albumInfo->{about};
+								$album->{band_id} = $albumInfo->{band_id} if $albumInfo->{band_id};
+								$album->{credits} = $albumInfo->{credits} if $albumInfo->{credits};
+								$album->{release_date} = $albumInfo->{release_date} if $albumInfo->{release_date};
 							}
 
-							if ( $html =~ /^\s+current: (\{.*\}),\s*$/m ) {
-								my $moreData = eval { from_json( Encode::encode('utf8', $1) ) };
 
-								if ( $moreData && ref $moreData ) {
-									$album->{about} = $moreData->{about} if $moreData->{about};
-									$album->{band_id} = $moreData->{band_id} if $moreData->{band_id};
-									$album->{credits} = $moreData->{credits} if $moreData->{credits};
-									$album->{art_lg_url} ||= Plugins::Bandcamp::API::get_artwork_url_from_id($moreData->{art_id}) if $moreData->{art_id};
-									$album->{release_date} = $moreData->{release_date} if $moreData->{release_date};
-								}
-							}
-
-							if ( $html =~ /^\s+packages: (\[.*\]),\s*$/m ) {
-								my $moreData = eval { from_json( Encode::encode('utf8', $1) ) };
-
-								if ( $moreData && ref $moreData && (my ($item) = grep { $_->{album_id} } @$moreData) ) {
-									$album->{album_id} ||= $item->{album_id};
+							if ( $info->{packages} && ref $info->{packages} eq 'ARRAY' ) {
+								foreach (@{$info->{packages}}) {
+									if ($_->{album_id}) {
+										$album->{album_id} = $_->{album_id};
+										last;
+									}
 								}
 							}
 						}
