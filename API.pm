@@ -469,6 +469,8 @@ sub cache_track_info {
 			$track->{streaming_url} = $url;
 		}
 
+		$track->{title} = HTML::Entities::decode_entities($track->{title});
+
 		# use album information to complete track information if available
 		if ($album) {
 			$track->{artist} ||= $album->{artist};

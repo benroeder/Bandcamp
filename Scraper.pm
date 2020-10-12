@@ -10,6 +10,7 @@ use HTML::TreeBuilder;
 use JSON::XS::VersionOneAndTwo;
 
 use Scalar::Util qw(blessed);
+use HTML::Entities;
 
 use Slim::Networking::SimpleAsyncHTTP;
 use Slim::Utils::Log;
@@ -102,13 +103,13 @@ sub get_album_info {
 						# if we found track data, we'll continue
 						if ( $trackData && ref $trackData ) {
 							if ( my $albumInfo = $info->{current} ) {
-								$album->{title} = $albumInfo->{title};
-								$album->{artist} = $albumInfo->{artist};
+								$album->{title} = decode_entities($albumInfo->{title});
+								$album->{artist} = decode_entities($albumInfo->{artist});
 								$album->{art_lg_url} = Plugins::Bandcamp::API::get_artwork_url_from_id($albumInfo->{art_id});
 
-								$album->{about} = $albumInfo->{about} if $albumInfo->{about};
+								$album->{about} = decode_entities($albumInfo->{about}) if $albumInfo->{about};
 								$album->{band_id} = $albumInfo->{band_id} if $albumInfo->{band_id};
-								$album->{credits} = $albumInfo->{credits} if $albumInfo->{credits};
+								$album->{credits} = decode_entities($albumInfo->{credits}) if $albumInfo->{credits};
 								$album->{release_date} = $albumInfo->{release_date} if $albumInfo->{release_date};
 							}
 
@@ -487,9 +488,9 @@ sub get_tag_items {
 											next unless $_->{item_type} && $_->{item_type} =~ /^[atp]$/;
 
 											my $meta = {
-												artist => $_->{artist},
+												artist => decode_entities($_->{artist}),
 												band_id => $_->{band_id},
-												title  => $_->{title},
+												title  => decode_entities($_->{title}),
 												large_art_url => Plugins::Bandcamp::API::get_artwork_url_from_id($_->{art_id}),
 												url    => $_->{tralbum_url},
 											};
@@ -540,8 +541,8 @@ sub get_sales_feed {
 					next unless $_->{item_type} && $_->{item_type} eq 'a'; # =~ /^[atp]$/;
 
 					my $meta = {
-						artist => $_->{artist_name},
-						title  => $_->{item_description},
+						artist => decode_entities($_->{artist_name}),
+						title  => decode_entities($_->{item_description}),
 						large_art_url => Plugins::Bandcamp::API::get_complete_url($_->{art_url}) || Plugins::Bandcamp::API::get_artwork_url_from_id($_->{art_id}),
 						url    => Plugins::Bandcamp::API::get_complete_url($_->{url}) || Plugins::Bandcamp::API::get_url_from_hints($_->{url_hints}),
 					};
@@ -610,8 +611,8 @@ sub get_discovery {
 				my $large_art = $_->{art_lg_url} || $_->{large_art};
 
 				push @$items, {
-					title         => $_->{primary_text},
-					artist        => $_->{secondary_text},
+					title         => decode_entities($_->{primary_text}),
+					artist        => decode_entities($_->{secondary_text}),
 					band_id       => $_->{band_id},
 					large_art_url => $large_art || $_->{art} || $_->{full_art} || Plugins::Bandcamp::API::get_artwork_url_from_id($_->{art_id}),
 					url           => $_->{url} || Plugins::Bandcamp::API::get_url_from_hints($_->{url_hints}),
