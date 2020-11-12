@@ -26,12 +26,15 @@ sub init {
 	$cache = shift;
 
 	# initialize recent searches: need to add them to the LRU cache ordered by timestamp
-	my $cached = $cache->get('recent_searches') || {};
-	map {
-		$recent_searches{$_} = $cached->{$_};
-	} sort {
-		$cached->{$a}->{ts} <=> $cached->{$a}->{ts}
-	} keys %$cached;
+	my $cached = $cache->get('recent_searches');
+
+	if ($cached && ref $cached && keys %$cached) {
+		map {
+			$recent_searches{$_} = $cached->{$_};
+		} sort {
+			$cached->{$a}->{ts} <=> $cached->{$a}->{ts}
+		} keys %$cached;
+	}
 }
 
 sub search {
