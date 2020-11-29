@@ -3,12 +3,11 @@ package Plugins::Bandcamp::API;
 # implement http://bandcamp.com/developer
 
 use strict;
-use Encode;
-use JSON::XS::VersionOneAndTwo;
-use URI::Escape;
 
 use Slim::Networking::SimpleAsyncHTTP;
 use Slim::Utils::Log;
+
+use Plugins::Bandcamp::API::Common;
 
 use constant BASE_URL      => 'https://bandcamp.com/';
 use constant API_URL_ALBUM => BASE_URL . 'api/album/2/info';
@@ -21,7 +20,6 @@ use constant API_URL_WEEKLY => BASE_URL . 'api/bcweekly/2/';
 
 use constant ARTWORK_URL   => 'http://f0.bcbits.com/';
 
-use constant CACHE_TTL     => 3600 * 12;
 use constant META_CACHE_TTL=> 86400 * 30;
 use constant USER_CACHE_TTL=> 60 * 5;
 
@@ -32,8 +30,7 @@ my $log = logger('plugin.bandcamp');
 my ($dk, $cache);
 
 sub init {
-	($cache, $dk) = @_;
-	$dk =~ s/-//g;
+	($cache, $dk) = Plugins::Bandcamp::API::Common->init(@_);
 }
 
 sub get_fan_collection {
@@ -579,6 +576,9 @@ sub track_key {
 	elsif ($url =~ /bcbits.*?\/stream\/.*?\/(\d+)\?/i) {
 		return $1;
 	}
+	elsif ($url =~ m|bandcamp://(.*?)\.mp3|) {
+		return $1;
+	}
 
 	return '';
 }
@@ -586,17 +586,8 @@ sub track_key {
 sub _get {
 	my ( $cb, $params, $args ) = @_;
 
-	my $url = (delete $args->{_url}) . ($args->{_nokey} ? '?' : '?key=' . $dk);
-
-	for my $k ( keys %{$args} ) {
-		next if $k =~ /^_/;
-		$url .= '&' . $k . '=' . ($args->{_no_escape} ? $args->{$k} : URI::Escape::uri_escape_utf8( Encode::decode( 'utf8', $args->{$k} ) ));
-	}
-
-	$url =~ s/\?&/?/;
-	$url =~ s/\?$//;
-
-	main::INFOLOG && $log->info($url);
+	$args->{_method} = 'GET';
+	my $url = Plugins::Bandcamp::API::Common->extendUrl($args);
 
 	if (my $cached = $cache->get('api_' . $url)) {
 		main::DEBUGLOG && $log->is_debug && $log->debug('found cached api response' . Data::Dump::dump($cached));
@@ -620,11 +611,8 @@ sub _get {
 sub _post {
 	my ( $cb, $params, $args ) = @_;
 
-	my $url = $args->{_url};
-
-	my $data = ref $args->{data} ? encode_json($args->{data}) : $args->{data};
-
-	main::INFOLOG && $log->info($url . ": \n" . Data::Dump::dump($data));
+	$args->{_method} = 'POST';
+	my ($url, $data) = Plugins::Bandcamp::API::Common->extendUrl($args);
 
 	if ( $args->{_cacheKey} && (my $cached = $cache->get('api_' . $args->{_cacheKey})) ) {
 		main::DEBUGLOG && $log->is_debug && $log->debug('found cached api response' . Data::Dump::dump($cached));
@@ -649,35 +637,7 @@ sub cb {
 	my $cb   = $http->params('cb');
 	my $args = $http->params('args');
 
-	my $result;
-
-	if ( $http->headers->content_type =~ /json/ ) {
-		$result = decode_json(
-			$http->content,
-		);
-
-		main::DEBUGLOG && $log->is_debug && $log->debug(Data::Dump::dump($result));
-
-		if ( !$result || $result->{error} ) {
-			$result = {
-				error => 'Error: ' . ($result->{error_message} || 'Unknown error')
-			};
-
-			$log->error($result->{error} . ' (' . $http->url . ')');
-		}
-		elsif ( !$http->params('nocache') && $http->type ne 'POST' ) {
-			$cache->set('api_' . $http->url, $result, $http->params('_cacheTTL') || CACHE_TTL);
-		}
-		elsif ( $args && $args->{_cacheKey} ) {
-			$cache->set('api_' . $args->{_cacheKey}, $result, $args->{'_cacheTTL'} || CACHE_TTL);
-		}
-	}
-	else {
-		$log->error("Invalid data");
-		$result = {
-			error => 'Error: Invalid data',
-		};
-	}
+	my $result = Plugins::Bandcamp::API::Common::parseResult($http, $args);
 
 	$cb->($result) if $cb;
 }

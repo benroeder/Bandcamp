@@ -175,3 +175,14 @@ PLUGIN_BANDCAMP_IDENTITY_TOKEN_INVALID
 PLUGIN_BANDCAMP_ALBUM_NOT_FOUND
 	DE	Das gewünschte Album wurde nicht gefunden. Dies kann vorkommen, wenn ein Verkäufer ein Album vom Verkauf zurückgezogen hat. Solche Alben sind auf bandcamp.com mit "PRIVATE" gekennzeichnet.
 	EN	This album was not found. This can happen if an album as been removed from public view. Such albums are labeled "PRIVATE" on bandcamp.com.
+
+PLUGIN_BANDCAMP_ARTISTS_PROGRESS
+	DE	Bandcamp Interpreten
+	EN	Bandcamp Artists
+	NL	Bandcamp Artiesten
+
+PLUGIN_BANDCAMP_PROGRESS_READ_ALBUMS
+	DE	Lese Alben...
+	EN	Fetching Albums...
+	FR	Chargement des albums...
+	NL	Albums ophalen...

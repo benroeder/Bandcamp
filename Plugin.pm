@@ -13,6 +13,7 @@ use Slim::Utils::Prefs;
 use Slim::Utils::Strings qw(string cstring);
 
 use Plugins::Bandcamp::API;
+use Plugins::Bandcamp::ProtocolHandler;
 use Plugins::Bandcamp::Scraper;
 use Plugins::Bandcamp::Search;
 
@@ -25,14 +26,13 @@ my $log = Slim::Utils::Log->addLogCategory( {
 my $prefs = preferences('plugin.bandcamp');
 
 use constant PLUGIN_TAG       => 'bandcamp';
-use constant PAGE_URL_REGEX   => qr{^https?://(?:[a-z0-9-]+\.)?bandcamp\.com/}i;
 use constant STREAM_URL_REGEX => qr{(?:bcbits|bandcamp)\.com/(?:download/track|stream/[a-z0-9]+/|stream_redirect\b)}i;
 use constant IMAGES_URL_REGEX => qr{f0\.bcbits\.com/(?:img|z)/};
 use constant CACHE_TTL        => 3600 * 12;
 use constant MAX_RECENT_ITEMS => 50;
 use constant RECENT_CACHE_TTL => 'never';
 
-my $cache = Slim::Utils::Cache->new('bandcamp', 3);
+my $cache;
 
 my %recent_plays;
 tie %recent_plays, 'Tie::Cache::LRU', MAX_RECENT_ITEMS;
@@ -41,6 +41,8 @@ my $does_scrobble;
 
 sub initPlugin {
 	my $class = shift;
+
+	$cache = Slim::Utils::Cache->new('bandcamp', $class->_pluginDataFor('cacheVersion'));
 
 	if ( !Slim::Networking::Async::HTTP->hasSSL() ) {
 		$log->error(string('PLUGIN_BANDCAMP_MISSING_SSL'));
@@ -81,7 +83,7 @@ sub initPlugin {
 
 	($prefs->get('username') || '') =~ m|/| && $log->error("Invalid username: " . $prefs->get('username'));
 
-	Plugins::Bandcamp::API::init( $cache, $class->_pluginDataFor('dk') );
+	Plugins::Bandcamp::API::init(Slim::Utils::PluginManager->dataForPlugin($class));
 	Plugins::Bandcamp::Scraper::init( $cache );
 	Plugins::Bandcamp::Search::init( $cache );
 
@@ -93,10 +95,9 @@ sub initPlugin {
 		weight => 1,
 	);
 
-	if (Slim::Player::ProtocolHandlers->can('registerURLHandler')) {
-		require Plugins::Bandcamp::ProtocolHandler;
-		Slim::Player::ProtocolHandlers->registerURLHandler(PAGE_URL_REGEX, "Plugins::Bandcamp::ProtocolHandler");
-	}
+	Slim::Player::ProtocolHandlers->registerHandler(
+		bandcamp => 'Plugins::Bandcamp::ProtocolHandler'
+	);
 
 	Slim::Formats::RemoteMetadata->registerProvider(
 		match => STREAM_URL_REGEX,
@@ -186,6 +187,32 @@ sub initPlugin {
 	if (main::WEBUI) {
 		require Plugins::Bandcamp::Settings;
 		Plugins::Bandcamp::Settings->new();
+	}
+}
+
+sub postinitPlugin {
+	if ( Slim::Utils::PluginManager->isEnabled('Slim::Plugin::OnlineLibrary::Plugin') ) {
+		eval {
+			require Plugins::Bandcamp::Importer;
+
+			# Slim::Plugin::OnlineLibrary::Plugin->addLibraryIconProvider('bandcamp', '/plugins/Bandcamp/html/images/icon.png');
+
+			# Slim::Plugin::OnlineLibrary::BrowseArtist->registerBrowseArtistItem( qobuz => sub {
+			# 	my ( $client ) = @_;
+
+			# 	return {
+			# 		name => cstring($client, 'BROWSE_ON_SERVICE', 'Qobuz'),
+			# 		type => 'link',
+			# 		icon => $class->_pluginDataFor('icon'),
+			# 		url  => \&browseArtistMenu,
+			# 	};
+			# } );
+
+			# main::INFOLOG && $log->is_info && $log->info("Successfully registered BrowseArtist handler for Qobuz");
+
+			# tell LMS that we need to run the external scanner
+			Slim::Music::Import->addImporter('Plugins::Bandcamp::Importer', { use => 1 });
+		}
 	}
 }
 
