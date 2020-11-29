@@ -2,7 +2,8 @@ package Plugins::Bandcamp::API::Sync;
 
 use strict;
 
-use Digest::MD5 qw(md5_hex);
+use File::Spec::Functions qw(catdir);
+use HTTP::Cookies;
 use JSON::XS::VersionOneAndTwo;
 # use List::Util qw(max);
 # use URI::Escape qw(uri_escape_utf8);
@@ -15,6 +16,7 @@ use Plugins::Bandcamp::API::Common;
 
 use constant API_URL_ALBUMS => '/api/fancollection/1/wishlist_items';
 use constant API_URL_ALBUM  => '/api/album/2/info';
+use constant API_URL_CHECKSUM => '/api/fan/2/collection_summary';
 
 use constant META_CACHE_TTL => 86400 * 30;
 use constant USER_CACHE_TTL => 60 * 5;
@@ -22,11 +24,13 @@ use constant USER_CACHE_TTL => 60 * 5;
 my $prefs = preferences('plugin.bandcamp');
 my $log = logger('plugin.bandcamp');
 
-my ($cache, $dk);
+my ($cache, $cookieJar, $dk);
 
 sub init {
 	my $class = shift;
 
+	# need to initialize Cookies ourselves, as LMS only reads them in async code
+	$cookieJar = HTTP::Cookies->new( file => catdir($prefs->get('cachedir'), 'cookies.dat') );
 	($cache, $dk) = Plugins::Bandcamp::API::Common->init(@_);
 
 	return $cache;
@@ -46,8 +50,6 @@ sub myAlbums {
 		},
 		_url      => API_URL_ALBUMS,
 		_method   => 'POST',
-		_cacheTTL => USER_CACHE_TTL,
-		_cacheKey => 'myAlbums_' . $fan_id
 	});
 
 	my $albums = [];
@@ -83,6 +85,17 @@ sub getAlbum {
 	});
 }
 
+sub getLibraryChecksum {
+	my ($class) = @_;
+
+	my $summary = _call({
+		_url => API_URL_CHECKSUM,
+		_nokey => 1,
+		_noCache => 1
+	});
+
+	Plugins::Bandcamp::API::Common::calculateLibraryChecksum($summary);
+}
 
 sub _call {
 	my ( $args ) = @_;
@@ -101,15 +114,16 @@ sub _call {
 	}
 
 	my $http = Slim::Networking::SimpleSyncHTTP->new({
+		nocache => $args->{_noCache} ? 1 : 0,
 		timeout => 15,
 	});
 
 	my $response;
 	if ($args->{_method} eq 'POST') {
-		$response = $http->post($url, 'Content-Type', $args->{_ct} || 'application/json', $data);
+		$response = $http->post($url, 'Cookie', 'identity=' . $prefs->get('identity_token'), 'Content-Type', $args->{_ct} || 'application/json', $data);
 	}
 	else {
-		$response = $http->get($url);
+		$response = $http->get($url, 'Cookie', 'identity=' . $prefs->get('identity_token'));
 	}
 
 	my $result = Plugins::Bandcamp::API::Common::parseResult($http, $args);

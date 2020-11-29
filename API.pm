@@ -17,6 +17,7 @@ use constant API_URL_URL   => BASE_URL . 'api/url/1/info';
 use constant API_URL_COLLECTION => BASE_URL . 'api/fancollection/1/';
 use constant API_URL_MUSIC_FEED => BASE_URL . 'fan_dash_feed_updates';
 use constant API_URL_WEEKLY => BASE_URL . 'api/bcweekly/2/';
+use constant API_URL_CHECKSUM => '/api/fan/2/collection_summary';
 
 use constant ARTWORK_URL   => 'http://f0.bcbits.com/';
 
@@ -583,13 +584,30 @@ sub track_key {
 	return '';
 }
 
+sub getLibraryChecksum {
+	my ($cb) = @_;
+
+	_get(
+		sub {
+			my $checksum = Plugins::Bandcamp::API::Common::calculateLibraryChecksum(shift);
+			$cb->($checksum) if $cb;
+		},
+		undef,
+		{
+			_url => API_URL_CHECKSUM,
+			_nokey => 1,
+			_noCache => 1
+		}
+	);
+}
+
 sub _get {
 	my ( $cb, $params, $args ) = @_;
 
 	$args->{_method} = 'GET';
 	my $url = Plugins::Bandcamp::API::Common->extendUrl($args);
 
-	if (my $cached = $cache->get('api_' . $url)) {
+	if ( !$args->{_noCache} && (my $cached = $cache->get('api_' . $url)) ) {
 		main::DEBUGLOG && $log->is_debug && $log->debug('found cached api response' . Data::Dump::dump($cached));
 		$cb->($cached);
 		return;

@@ -194,26 +194,24 @@ sub postinitPlugin {
 	if ( Slim::Utils::PluginManager->isEnabled('Slim::Plugin::OnlineLibrary::Plugin') ) {
 		eval {
 			require Plugins::Bandcamp::Importer;
-
-			# Slim::Plugin::OnlineLibrary::Plugin->addLibraryIconProvider('bandcamp', '/plugins/Bandcamp/html/images/icon.png');
-
-			# Slim::Plugin::OnlineLibrary::BrowseArtist->registerBrowseArtistItem( qobuz => sub {
-			# 	my ( $client ) = @_;
-
-			# 	return {
-			# 		name => cstring($client, 'BROWSE_ON_SERVICE', 'Qobuz'),
-			# 		type => 'link',
-			# 		icon => $class->_pluginDataFor('icon'),
-			# 		url  => \&browseArtistMenu,
-			# 	};
-			# } );
-
-			# main::INFOLOG && $log->is_info && $log->info("Successfully registered BrowseArtist handler for Qobuz");
+			Slim::Plugin::OnlineLibrary::Plugin->addLibraryIconProvider('bandcamp', '/plugins/Bandcamp/html/images/bc.png');
 
 			# tell LMS that we need to run the external scanner
 			Slim::Music::Import->addImporter('Plugins::Bandcamp::Importer', { use => 1 });
 		}
 	}
+}
+
+sub onlineLibraryNeedsUpdate {
+	my $class = shift;
+	require Plugins::Bandcamp::Importer;
+	return Plugins::Bandcamp::Importer->needsUpdate(@_);
+}
+
+sub getLibraryStats {
+	require Plugins::Bandcamp::Importer;
+	my $totals = Plugins::Bandcamp::Importer->getLibraryStats();
+	return wantarray ? ('PLUGIN_BANDCAMP', $totals) : $totals;
 }
 
 sub getDisplayName { 'PLUGIN_BANDCAMP' }

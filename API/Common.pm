@@ -2,6 +2,7 @@ package Plugins::Bandcamp::API::Common;
 
 use strict;
 
+use Digest::MD5 qw(md5_hex);
 use Encode;
 use JSON::XS::VersionOneAndTwo;
 use URI::Escape qw(uri_escape_utf8);
@@ -27,6 +28,21 @@ sub init {
 	$dk =~ s/-//g;
 
 	return wantarray ? ($cache, $dk) : $cache;
+}
+
+sub calculateLibraryChecksum {
+	my $summary = shift || return;
+
+	my $checksum;
+	if (ref $summary && $summary->{collection_summary}) {
+		my $albums = $summary->{collection_summary}->{tralbum_lookup} || {};
+		$checksum = md5_hex(join('::', sort grep {
+			!$albums->{$_}->{purchased}
+		} keys %$albums));
+	}
+
+	main::INFOLOG && $log->is_info && $log->info("Library checksum: $checksum");
+	return $checksum;
 }
 
 sub extendUrl {
@@ -73,7 +89,6 @@ sub parseResult {
 
 		main::DEBUGLOG && $log->is_debug && $log->debug(Data::Dump::dump($result));
 
-warn Data::Dump::dump($http->params, $http->url, $http->type);
 		if ( !$result || $result->{error} ) {
 			$result = {
 				error => 'Error: ' . ($result->{error_message} || 'Unknown error')
