@@ -101,21 +101,6 @@ sub getNextTrack {
 					$errorCb->('PROBLEM_CONVERT_STREAM');
 				},
 			} );
-
-	# 		Slim::Networking::SimpleAsyncHTTP->new(sub {
-	# my $http = shift;
-	# 			warn Data::Dump::dump($http);
-	# 			warn Data::Dump::dump($http->headers);
-	# 		}, sub {
-	# 			warn Data::Dump::dump(@_);
-	# 		}, {
-	# 			maxRedirect => -1
-	# 		})->head($trackInfo->{streaming_url});
-
-			# warn $trackInfo->{streaming_url};
-			# $trackInfo->{streaming_url} =~ s/^https/http/;
-			# $song->streamUrl($trackInfo->{streaming_url});
-			# $successCb->();
 		}
 		else {
 			$errorCb->('PROBLEM_CONVERT_STREAM');

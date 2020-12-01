@@ -5,8 +5,6 @@ use strict;
 use File::Spec::Functions qw(catdir);
 use HTTP::Cookies;
 use JSON::XS::VersionOneAndTwo;
-# use List::Util qw(max);
-# use URI::Escape qw(uri_escape_utf8);
 
 use Slim::Networking::SimpleSyncHTTP;
 use Slim::Utils::Log;
