@@ -1,6 +1,8 @@
 package Plugins::Bandcamp::Importer;
 
 use strict;
+use Date::Parse qw(str2time);
+use POSIX qw(strftime);
 
 # can't "use base ()", as this would fail in LMS 7
 BEGIN {
@@ -89,7 +91,7 @@ sub scanAlbums {
 		if ($albumDetails && $albumDetails->{tracks} && ref $albumDetails->{tracks}) {
 			$progress->update($album->{title});
 			$class->storeTracks([
-				grep { $_ } map { _prepareTrack($album, $_, $albumDetails->{about}) } @{ $albumDetails->{tracks} }
+				grep { $_ } map { _prepareTrack($album, $_, $albumDetails) } @{ $albumDetails->{tracks} }
 			]);
 
 			main::SCANNER && Slim::Schema->forceCommit;
@@ -108,7 +110,7 @@ sub scanAlbums {
 		$cache->set('album_with_tracks_' . $album->{id}, $albumDetails, time() + 86400 * 90);
 
 		$class->storeTracks([
-			grep { $_ } map { _prepareTrack($album, $_, $albumDetails->{about}) } @{ $albumDetails->{tracks} }
+			grep { $_ } map { _prepareTrack($album, $_, $albumDetails) } @{ $albumDetails->{tracks} }
 		]);
 
 		main::SCANNER && Slim::Schema->forceCommit;
@@ -139,7 +141,7 @@ sub needsUpdate { if (!main::SCANNER) {
 } }
 
 sub _prepareTrack {
-	my ($album, $track, $comment) = @_;
+	my ($album, $track, $albumDetails) = @_;
 
 	return unless $track && $track->{streaming_url};
 
@@ -154,17 +156,16 @@ sub _prepareTrack {
 		ALBUM        => $album->{title},
 		ALBUM_EXTID  => 'bandcamp:album:' . $album->{id},
 		TRACKNUM     => $track->{number},
-		# GENRE        => $album->{genre},
+		GENRE        => 'Bandcamp',
 		SECS         => $track->{duration},
-		# YEAR         => (localtime($album->{released_at}))[5] + 1900,
+		YEAR         => strftime('%Y', localtime($albumDetails->{release_date} || 0)),
 		COVER        => $album->{cover},
 		AUDIO        => 1,
 		EXTID        => $url,
-		# TODO - parse timestamp!
-		# TIMESTAMP    => $album->{added},
+		TIMESTAMP    => str2time($album->{added} || 0),
 		CONTENT_TYPE => 'mp3',
 		SAMPLERATE   => 128_000,
-		COMMENT      => $comment,
+		COMMENT      => $albumDetails->{about},
 	};
 
 	return $attributes;
