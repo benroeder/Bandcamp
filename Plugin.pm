@@ -191,7 +191,7 @@ sub initPlugin {
 }
 
 sub postinitPlugin {
-	if ( Slim::Utils::PluginManager->isEnabled('Slim::Plugin::OnlineLibrary::Plugin') ) {
+	if ( Slim::Utils::PluginManager->isEnabled('Slim::Plugin::OnlineLibrary::Plugin') && $prefs->get('enableImporter') ) {
 		eval {
 			require Plugins::Bandcamp::Importer;
 			Slim::Plugin::OnlineLibrary::Plugin->addLibraryIconProvider('bandcamp', '/plugins/Bandcamp/html/images/bc.png');
@@ -200,18 +200,6 @@ sub postinitPlugin {
 			Slim::Music::Import->addImporter('Plugins::Bandcamp::Importer', { use => 1 });
 		}
 	}
-}
-
-sub onlineLibraryNeedsUpdate {
-	my $class = shift;
-	require Plugins::Bandcamp::Importer;
-	return Plugins::Bandcamp::Importer->needsUpdate(@_);
-}
-
-sub getLibraryStats {
-	require Plugins::Bandcamp::Importer;
-	my $totals = Plugins::Bandcamp::Importer->getLibraryStats();
-	return wantarray ? ('PLUGIN_BANDCAMP', $totals) : $totals;
 }
 
 sub getDisplayName { 'PLUGIN_BANDCAMP' }

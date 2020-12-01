@@ -170,6 +170,23 @@ sub _prepareTrack {
 	return $attributes;
 }
 
+1;
+
+# add some helper methods to the main package
+package Plugins::Bandcamp::Plugin;
+
+sub onlineLibraryNeedsUpdate {
+	my $class = shift;
+	# require Plugins::Bandcamp::Importer;
+	return Plugins::Bandcamp::Importer->needsUpdate(@_);
+}
+
+sub getLibraryStats {
+	# require Plugins::Bandcamp::Importer;
+	my $totals = Plugins::Bandcamp::Importer->getLibraryStats();
+	return wantarray ? ('PLUGIN_BANDCAMP', $totals) : $totals;
+}
+
 # Collection summary
 # curl --location --request GET 'https://bandcamp.com/api/fan/2/collection_summary' \
 # --header 'Cookie: client_id=EC2FF8F471A0EB0915984425A5C0FA23879576ADFC9FF65111280186E58E08C7; fan_visits=10236; BACKENDID=bender24-4; session=1%09t%3A1606491461%09bp%3A1%09r%3A%5B%22322845039c10236a34939844x1606495375%22%2C%22364587321a34939844c0x1606494947%22%2C%22365547591x0a34939844x1606494866%22%5D; identity=7%0958IhReMTODjIDcbKQHKEZ415UpCJ7oFBne8qAupDu5g%3D%09%7B%22ex%22%3A0%2C%22id%22%3A1712700664%7D'
