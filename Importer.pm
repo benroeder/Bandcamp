@@ -107,6 +107,10 @@ sub scanAlbums {
 
 		next unless $albumDetails && ref $albumDetails && $albumDetails->{tracks} && scalar @{$albumDetails->{tracks}};
 
+		$albumDetails->{artist}    ||= $album->{band_name};
+		$albumDetails->{band_name} ||= $album->{band_name};
+		$albumDetails->{band_id}   ||= $album->{band_id};
+
 		$cache->set('album_with_tracks_' . $album->{id}, $albumDetails, time() + 86400 * 90);
 
 		$class->storeTracks([
@@ -147,11 +151,13 @@ sub _prepareTrack {
 
 	my $url = sprintf('bandcamp://%s.mp3', $track->{track_id});
 
+	Plugins::Bandcamp::API::Common::cache_track_info($track, $album);
+
 	my $attributes = {
 		url          => $url,
 		TITLE        => $track->{title},
 		ARTIST       => $album->{artist},
-		ARTIST_EXTID => 'bandcamp:artist:' . $album->{artist_id},
+		ARTIST_EXTID => 'bandcamp:artist:' . $album->{band_id},
 		# TRACKARTIST  => $track->{performer}->{name},
 		ALBUM        => $album->{title},
 		ALBUM_EXTID  => 'bandcamp:album:' . $album->{id},

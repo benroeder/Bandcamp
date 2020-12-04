@@ -16,8 +16,8 @@ use Slim::Networking::SimpleAsyncHTTP;
 use Slim::Utils::Log;
 
 use Plugins::Bandcamp::API;
+use Plugins::Bandcamp::API::Common;
 
-use constant BASE_URL      => 'https://bandcamp.com/';
 use constant TAGS_BASE_URL => BASE_URL . 'tags/';
 use constant TAG_BASE_URL  => BASE_URL . 'tag/';
 use constant SEARCH_URL    => BASE_URL . 'search?q=';
@@ -25,10 +25,6 @@ use constant SEARCH_URL    => BASE_URL . 'search?q=';
 # not officially documented, but worth moving to the API module?
 use constant API_URL_SALES => BASE_URL . 'api/salesfeed/1/get?start_date=';
 use constant DISCOVERY_URL => BASE_URL . 'api/discover/3/get_web?p=0&';
-
-use constant CACHE_TTL     => 3600 * 12;
-use constant META_CACHE_TTL=> 86400 * 30;
-use constant USER_CACHE_TTL=> 60 * 5;
 
 my $log = logger('plugin.bandcamp');
 
@@ -105,7 +101,7 @@ sub get_album_info {
 							if ( my $albumInfo = $info->{current} ) {
 								$album->{title} = decode_entities($albumInfo->{title});
 								$album->{artist} = decode_entities($albumInfo->{artist});
-								$album->{art_lg_url} = Plugins::Bandcamp::API::get_artwork_url_from_id($albumInfo->{art_id});
+								$album->{art_lg_url} = get_artwork_url_from_id($albumInfo->{art_id});
 
 								$album->{about} = decode_entities($albumInfo->{about}) if $albumInfo->{about};
 								$album->{band_id} = $albumInfo->{band_id} if $albumInfo->{band_id};
@@ -127,7 +123,7 @@ sub get_album_info {
 						$album->{tracks} = [ map {
 							$_->{number} = $_->{track_num};
 							$_->{streaming_url} = $_->{file};
-							Plugins::Bandcamp::API::cache_track_info($_, $album);
+							cache_track_info($_, $album);
 						} @$trackData ];
 
 						$result = [$album];
@@ -491,7 +487,7 @@ sub get_tag_items {
 												artist => decode_entities($_->{artist}),
 												band_id => $_->{band_id},
 												title  => decode_entities($_->{title}),
-												large_art_url => Plugins::Bandcamp::API::get_artwork_url_from_id($_->{art_id}),
+												large_art_url => get_artwork_url_from_id($_->{art_id}),
 												url    => $_->{tralbum_url},
 											};
 
@@ -543,8 +539,8 @@ sub get_sales_feed {
 					my $meta = {
 						artist => decode_entities($_->{artist_name}),
 						title  => decode_entities($_->{item_description}),
-						large_art_url => Plugins::Bandcamp::API::get_complete_url($_->{art_url}) || Plugins::Bandcamp::API::get_artwork_url_from_id($_->{art_id}),
-						url    => Plugins::Bandcamp::API::get_complete_url($_->{url}) || Plugins::Bandcamp::API::get_url_from_hints($_->{url_hints}),
+						large_art_url => get_complete_url($_->{art_url}) || get_artwork_url_from_id($_->{art_id}),
+						url    => get_complete_url($_->{url}) || get_url_from_hints($_->{url_hints}),
 					};
 
 					# if ($_->{item_type} eq 't') {
@@ -614,8 +610,8 @@ sub get_discovery {
 					title         => decode_entities($_->{primary_text}),
 					artist        => decode_entities($_->{secondary_text}),
 					band_id       => $_->{band_id},
-					large_art_url => $large_art || $_->{art} || $_->{full_art} || Plugins::Bandcamp::API::get_artwork_url_from_id($_->{art_id}),
-					url           => $_->{url} || Plugins::Bandcamp::API::get_url_from_hints($_->{url_hints}),
+					large_art_url => $large_art || $_->{art} || $_->{full_art} || get_artwork_url_from_id($_->{art_id}),
+					url           => $_->{url} || get_url_from_hints($_->{url_hints}),
 				};
 
 				# small artwork version
@@ -658,6 +654,46 @@ sub get_discovery {
 		undef,
 		$url
 	);
+}
+
+sub get_complete_url {
+	my $url = $_[0];
+
+	return $url if $url =~ /^http/;
+	return 'http:' . $url;
+}
+
+#  url_hints => {
+#        custom_domain => "vestbotrio.com",
+#        "custom_domain_verified" => 1,
+#        item_type => "a",
+#        slug => "flowmotion",
+#        subdomain => "vestbotrio",
+#      },
+#  url_hints => {
+#        custom_domain => undef,
+#        "custom_domain_verified" => undef,
+#        item_type => "a",
+#        slug => "git-witt-u",
+#        subdomain => "fsgreen",
+#      },
+my $item_types = {
+	a => 'album',
+	t => 'track',    # just a guess...
+	p => 'merch',
+};
+
+sub get_url_from_hints {
+	my $hints = shift;
+
+	my $url = $hints->{custom_domain};
+	$url  ||= $hints->{subdomain};
+
+	return unless $url;
+
+	$url .= '.bandcamp.com' unless $hints->{custom_domain};
+
+	return sprintf('http://%s/%s/%s', $url, $item_types->{$hints->{item_type}}, $hints->{slug});
 }
 
 sub _get {

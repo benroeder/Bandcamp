@@ -13,6 +13,7 @@ use Slim::Utils::Prefs;
 use Slim::Utils::Strings qw(string cstring);
 
 use Plugins::Bandcamp::API;
+use Plugins::Bandcamp::API::Common;
 use Plugins::Bandcamp::ProtocolHandler;
 use Plugins::Bandcamp::Scraper;
 use Plugins::Bandcamp::Search;
@@ -28,7 +29,6 @@ my $prefs = preferences('plugin.bandcamp');
 use constant PLUGIN_TAG       => 'bandcamp';
 use constant STREAM_URL_REGEX => qr{(?:bcbits|bandcamp)\.com/(?:download/track|stream/[a-z0-9]+/|stream_redirect\b)}i;
 use constant IMAGES_URL_REGEX => qr{f0\.bcbits\.com/(?:img|z)/};
-use constant CACHE_TTL        => 3600 * 12;
 use constant MAX_RECENT_ITEMS => 50;
 use constant RECENT_CACHE_TTL => 'never';
 
@@ -169,7 +169,7 @@ sub initPlugin {
 						1024 => 20,
 						# 0 => original (size & format, don't use extension)
 					}) || '2';
-					$url = Plugins::Bandcamp::API::get_artwork_url_from_id($art_id, $size);
+					$url = get_artwork_url_from_id($art_id, $size);
 				}
 				else {
 					my $size = Slim::Web::ImageProxy->getRightSize($spec, { 100 => 'small_', 350 => '' }) || 'full_';
@@ -830,7 +830,7 @@ sub metadata_provider {
 		cover  => __PACKAGE__->_pluginDataFor('icon'),
 	};
 
-	my $key = Plugins::Bandcamp::API::track_key($url);
+	my $key = track_key($url);
 	if (my $cached = $cache->get('meta_' . $key)) {
 		if ($cached->{album_url}) {
 			my $song = $client->playingSong();
@@ -861,6 +861,7 @@ sub metadata_provider {
 			album    => $does_scrobble ? $cached->{album} : $cached->{album_url},
 			duration => $cached->{duration},
 			cover    => $cached->{image},
+			bitrate  => "128" . Slim::Utils::Strings::string('KBPS'),
 		};
 	}
 
@@ -901,7 +902,7 @@ sub trackInfoMenu {
 
 	return unless $url && $url =~ STREAM_URL_REGEX;
 
-	my $key = Plugins::Bandcamp::API::track_key($url);
+	my $key = track_key($url);
 	if (my $cached = $cache->get('meta_' . $key)) {
 		$cached->{large_art_url} = $cached->{image};
 		$cached->{notracks}      = 1;
@@ -1039,7 +1040,7 @@ sub track_list {
 
 	my $tracks = [];
 	foreach my $track (@{$items->{tracks}}) {
-		$track = Plugins::Bandcamp::API::cache_track_info($track, $items);
+		$track = cache_track_info($track, $items);
 
 		my $trackinfo = [];
 

@@ -16,9 +16,6 @@ use constant API_URL_ALBUMS => '/api/fancollection/1/wishlist_items';
 use constant API_URL_ALBUM  => '/api/album/2/info';
 use constant API_URL_CHECKSUM => '/api/fan/2/collection_summary';
 
-use constant META_CACHE_TTL => 86400 * 30;
-use constant USER_CACHE_TTL => 60 * 5;
-
 my $prefs = preferences('plugin.bandcamp');
 my $log = logger('plugin.bandcamp');
 
@@ -58,9 +55,10 @@ sub myAlbums {
 				added => $_->{added},
 				id    => $_->{album_id},
 				title => $_->{album_title},
-				artist=> $_->{band_name},
-				artist_id => $_->{band_id},
-				cover => $_->{item_art_url}
+				band_name => $_->{band_name},
+				artist => $_->{band_name},
+				band_id => $_->{band_id},
+				cover => get_artwork_url_from_id($_->{item_art_id}) || $_->{item_art_url}
 				# genre => $_->{genre_id},
 			};
 

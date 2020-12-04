@@ -74,7 +74,7 @@ sub getNextTrack {
 	}
 
 	# Get next track
-	my $id = Plugins::Bandcamp::API::track_key($url);
+	my $id = Plugins::Bandcamp::API::Common::track_key($url);
 
 	Plugins::Bandcamp::API::get_track_info({
 		track_id => $id
