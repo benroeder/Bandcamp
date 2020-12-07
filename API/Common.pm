@@ -17,7 +17,7 @@ use URI::Escape qw(uri_escape_utf8);
 use Slim::Utils::Log;
 use Slim::Utils::Prefs;
 
-use constant BASE_URL    => 'https://bandcamp.com';
+use constant BASE_URL    => 'https://bandcamp.com/';
 use constant ARTWORK_URL => 'http://f0.bcbits.com/';
 
 use constant CACHE_TTL      => 3600 * 12;
