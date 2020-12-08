@@ -188,10 +188,8 @@ sub initPlugin {
 		require Plugins::Bandcamp::Settings;
 		Plugins::Bandcamp::Settings->new();
 	}
-}
 
-sub postinitPlugin {
-	if ( Slim::Utils::PluginManager->isEnabled('Slim::Plugin::OnlineLibrary::Plugin') && $prefs->get('enableImporter') ) {
+	if ($prefs->get('enableImporter')) {
 		eval {
 			require Plugins::Bandcamp::Importer;
 			Slim::Plugin::OnlineLibrary::Plugin->addLibraryIconProvider('bandcamp', '/plugins/Bandcamp/html/images/bc.png');

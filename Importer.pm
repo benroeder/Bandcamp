@@ -40,9 +40,11 @@ sub initPlugin {
 }
 
 sub isImportEnabled { if (CAN_IMPORTER) {
+	my ($class) = @_;
+
 	if ($prefs->get('identity_token')) {
 		$cache->set('library_fingerprint', -1, 30 * 86400);
-		return 1;
+		return $class->SUPER::isImportEnabled();
 	}
 
 	return;
