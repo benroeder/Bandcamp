@@ -100,7 +100,7 @@ sub get_album_info {
 						if ( $trackData && ref $trackData ) {
 							if ( my $albumInfo = $info->{current} ) {
 								$album->{title} = decode_entities($albumInfo->{title});
-								$album->{artist} = decode_entities($albumInfo->{artist});
+								$album->{artist} = decode_entities($albumInfo->{artist} || $info->{artist});
 								$album->{art_lg_url} = get_artwork_url_from_id($albumInfo->{art_id});
 
 								$album->{about} = decode_entities($albumInfo->{about}) if $albumInfo->{about};
