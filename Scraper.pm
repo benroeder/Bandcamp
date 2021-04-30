@@ -307,11 +307,15 @@ sub search {
 			my $tree   = shift;
 			my $result = [];
 
-			my @items = $tree->look_down("_tag", "li", "class", qr/searchresult (?:track|album|band)/);
+			my @items = $tree->look_down("_tag", "li", "class", qr/searchresult data-search/);
 
 			foreach my $item (@items) {
-				my $class = $item->attr('class');
-				if ($class =~ /\btrack\b/) {
+				my $searchInfo = eval { from_json($item->attr('data-search')) };
+				$log->error("Failed to parse search result item: $@") if $@;
+
+				my $type = $searchInfo->{type} if $searchInfo;
+
+				if ($type eq 't') {
 					my $track_item = {};
 
 					my $track_details = $item->look_down("_tag", "div", "class", "heading");
@@ -345,7 +349,7 @@ sub search {
 
 					push @$result, $track_item;
 				}
-				elsif ($class =~ /\balbum\b/) {
+				elsif ($type eq 'a') {
 					my $album_item = {};
 
 					my $album_details = $item->look_down("_tag", "div", "class", "heading");
@@ -379,7 +383,7 @@ sub search {
 
 					push @$result, $album_item;
 				}
-				elsif ($class =~ /\bband\b/) {
+				elsif ($type eq 'b') {
 					push @$result, _parse_band_element($item);
 				}
 			}
