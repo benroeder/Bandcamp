@@ -135,7 +135,7 @@ sub cache_track_info {
 		}
 
 		$track->{title} = HTML::Entities::decode_entities($track->{title});
-		$track->{number} ||= $_->{track_number} || $_->{track_number};
+		$track->{number} ||= $track->{track_number} || $track->{track_number};
 
 		# use album information to complete track information if available
 		if ($album) {
