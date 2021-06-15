@@ -213,6 +213,11 @@ sub handleFeed {
 
 	my $items = [
 		{
+			name => cstring($client, 'PLUGIN_BANDCAMP_DAILY'),
+			type => 'link',
+			url  => \&get_daily_shows,
+		},
+		{
 			name => cstring($client, 'PLUGIN_BANDCAMP_WEEKLY'),
 			type => 'link',
 			url  => \&get_weekly_shows,
@@ -484,6 +489,70 @@ sub music_feed {
 			fan_id => $prefs->get('fan_id')
 		}
 	)
+}
+
+sub get_daily_shows {
+	my ($client, $cb, $params) = @_;
+
+	Plugins::Bandcamp::Scraper::get_daily_list(
+		sub {
+			my $items = shift;
+
+			my $shows = [];
+
+			foreach my $show (@{$items->{daily_list}}) {
+				push @$shows, {
+					name  => $show->{name},
+					image => $show->{cover},
+					url   => \&get_daily_show,
+					passthrough => [{
+						url => $show->{url},
+						image => $show->{cover}
+					}],
+				};
+			}
+
+			$cb->( $shows );
+		},
+	);
+}
+
+sub get_daily_show {
+	my ($client, $cb, $params, $args) = @_;
+
+	Plugins::Bandcamp::Scraper::get_daily_show(
+		sub {
+			my $show = shift;
+			my $items = [];
+
+			if ($show->{tracks}) {
+				my $tracks = track_list($client, $show, {
+					no_tracknumber => 1,
+					artwork        => 1,
+					artist         => 1,
+				}) if $show->{tracks};
+
+				push @$items, {
+					name => cstring($client, 'PLUGIN_BANDCAMP_DAILY_SHOW_TRACKS'),
+					image => $args->{image},
+					items => $tracks,
+					type => 'playlist',
+					play => [ grep { $_ } map { $_->{play} } @$tracks ],
+				};
+			}
+
+			if ($show->{albums}) {
+				my $albums = album_list($client, \&get_item_info_by_url, { discography => $show->{albums} }, {
+					dontSort => 1,
+				});
+
+				push @$items, @$albums;
+			}
+
+			$cb->($items);
+		},
+		$args
+	);
 }
 
 sub get_weekly_shows {

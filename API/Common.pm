@@ -127,7 +127,7 @@ sub parseResult {
 sub cache_track_info {
 	my ($track, $album) = @_;
 
-	if (my $url = $track->{streaming_url}) {
+	if (my $url = $track->{streaming_url} || $track->{audio_url}) {
 		# sometimes we get a hash for the streaming_url? Pick the 128kbps or some random other stream
 		if (ref $url eq 'HASH') {
 			$url = $url->{'mp3-128'} || $url->{(keys %$url)[0]};
@@ -135,6 +135,7 @@ sub cache_track_info {
 		}
 
 		$track->{title} = HTML::Entities::decode_entities($track->{title});
+		$track->{number} ||= $_->{track_number} || $_->{track_number};
 
 		# use album information to complete track information if available
 		if ($album) {

@@ -21,6 +21,7 @@ use Plugins::Bandcamp::API::Common;
 use constant TAGS_BASE_URL => BASE_URL . 'tags/';
 use constant TAG_BASE_URL  => BASE_URL . 'tag/';
 use constant SEARCH_URL    => BASE_URL . 'search?q=';
+use constant DAILY_URL     => 'https://daily.bandcamp.com';
 
 # not officially documented, but worth moving to the API module?
 use constant API_URL_SALES => BASE_URL . 'api/salesfeed/1/get?start_date=';
@@ -660,6 +661,126 @@ sub get_discovery {
 	);
 }
 
+sub get_daily_list {
+	my ($cb) = @_;
+
+	_get(undef,
+		sub {
+			$cb->({
+				daily_list => shift
+			}) if $cb;
+		},
+		sub {
+			my $tree   = shift;
+			my $result = [];
+
+			my $dailies_list = $tree->look_down("_tag", "div", "class", "latest-section");
+
+			if (scalar $dailies_list) {
+				my @dailies = $dailies_list->look_down("_tag", "div", "class", "list-article  ");
+
+				foreach my $daily (@dailies) {
+					my $titleItem = $daily->look_down("_tag", "a", "class", "title");
+					my $imageItem = $daily->look_down("_tag", "img");
+
+					push @$result, {
+						name => $titleItem->content->[0],
+						url => DAILY_URL . $titleItem->attr('href'),
+						cover => $imageItem->attr('src'),
+					};
+				}
+
+				$cache->set(DAILY_URL, $result, 3600);
+			}
+
+			return $result;
+		},
+		undef,
+		DAILY_URL,
+		DAILY_URL
+	);
+}
+
+sub get_daily_show {
+	my ( $cb, $args ) = @_;
+
+	_get(undef,
+		sub {
+			my $items = shift;
+
+			$cb->({
+				tracks => [ grep { !$_->{tracks} } @$items ],
+				albums => [ grep { $_->{tracks} } @$items ],
+			});
+		},
+		sub {
+			my $tree   = shift;
+			my $tracks = [];
+			my $albums = [];
+			my $results = [];
+
+			my $dailies = $tree->look_down("_tag", "div", "id", "p-daily-article");
+
+			if (scalar $dailies) {
+				my $data = $dailies->attr('data-player-infos');
+
+				$data = eval { from_json( Encode::encode( 'utf8', $data) ) };
+
+				if ($@ || !$data || !ref $data) {
+					$log->error($@);
+				}
+
+				foreach my $item (@$data) {
+					my $type = $item->{tralbum_type} || '';
+
+					my $album = {
+						url => $item->{tralbum_url},
+						title => $item->{title},
+						artist => $item->{band_name},
+						band_id => $item->{band_id},
+						art_lg_url => get_artwork_url_from_id($item->{art_id}),
+					};
+
+					foreach (@{$item->{tracklist}}) {
+						cache_track_info($_, $album);
+					}
+
+					$album->{tracks} = [ map {
+						cache_track_info($_, $album);
+					} @{$item->{tracklist}} ];
+
+					push @$results, $album;
+
+					my $rawTrack = $item->{tracklist}->[$item->{featured_track_number}-1] if $item->{featured_track_number};
+
+					if ($rawTrack) {
+						my $track = {
+							title    => $rawTrack->{track_title},
+							artist   => $album->{artist},
+							band_id  => $album->{band_id},
+							album    => $album->{title},
+							album_id => $rawTrack->{album_id},
+							large_art_url => get_artwork_url_from_id($rawTrack->{art_id}),
+							track_id => $rawTrack->{track_id},
+							streaming_url => $rawTrack->{streaming_url},
+							duration => $rawTrack->{audio_track_duration},
+						};
+
+						push @$results, $track;
+					}
+				}
+
+				$cache->set($args->{url}, $results, CACHE_TTL);
+			}
+
+			return $results;
+		},
+		undef,
+		$args->{url},
+		$args->{url}
+	);
+}
+
 sub get_complete_url {
 	my $url = $_[0];
 
@@ -704,7 +825,7 @@ sub _get {
 	my ($client, $cb, $parseCB, $params, $tag, $url) = @_;
 
 	if ( $tag && (my $cached = $cache->get($tag)) ) {
-		main::INFOLOG && $log->is_info && $log->info("found cached value for '$tag': ");
+		main::INFOLOG && $log->is_info && $log->info("found cached value for '$tag'");
 		main::DEBUGLOG && $log->is_debug && $log->debug(Data::Dump::dump($cached));
 		$cb->( $cached );
 		return;
