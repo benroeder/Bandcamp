@@ -11,7 +11,7 @@ use Plugins::Bandcamp::Plugin;
 
 use constant PAGE_URL_REGEX   => qr{^https?://(?:[a-z0-9-]+\.)?bandcamp\.com/}i;
 
-# Slim::Player::ProtocolHandlers->registerURLHandler(PAGE_URL_REGEX, __PACKAGE__) if Slim::Player::ProtocolHandlers->can('registerURLHandler');
+Slim::Player::ProtocolHandlers->registerURLHandler(PAGE_URL_REGEX, __PACKAGE__) if Slim::Player::ProtocolHandlers->can('registerURLHandler');
 
 my $log = logger('plugin.bandcamp');
 
