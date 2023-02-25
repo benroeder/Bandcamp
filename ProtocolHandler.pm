@@ -20,11 +20,12 @@ sub new {
 	my $args   = shift;
 
 	my $client = $args->{client};
+	my $song   = $args->{song};
 
-	my $song      = $args->{song};
-	my $streamUrl = $song->streamUrl() || return;
+	# use streaming url but avoid redirection loop
+	my $streamUrl = ($args->{redir} ? $args->{url} : $song->streamUrl()) || return;
 
-	main::DEBUGLOG && $log->debug( 'Remote streaming Bandcamp track: ' . $streamUrl );
+	main::INFOLOG && $log->info( 'Remote streaming Bandcamp track: ' . $streamUrl );
 
 	my $sock = $class->SUPER::new( {
 		url     => $streamUrl,
