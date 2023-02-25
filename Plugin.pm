@@ -868,7 +868,14 @@ sub get_item_info_by_url {
 					$args->{track_id}  ||= $items->{track_id};
 					$args->{album_url} ||= $args->{url};
 
-					get_track($client, $cb, $params, $args);
+					get_track($client, sub {
+						my $tracks = shift;
+						if ($tracks && ref $tracks && $tracks->{items}) {
+							return $cb->($tracks->{items});
+						}
+
+						$cb->($tracks, @_);
+					}, $params, $args);
 				}
 				elsif ($items->{band_id}) {
 					$args->{band_id} ||= $items->{band_id};
