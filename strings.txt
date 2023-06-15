@@ -157,7 +157,7 @@ PLUGIN_BANDCAMP_NEW_ARRIVALS
 	FR	Les nouveautés
 
 PLUGIN_BANDCAMP_MOST_RECOMMENDED
-	DE	Meist empfohlene Artisten
+	DE	Meist empfohlene Interpreten
 	EN	Most recommended Artists
 	FR	Artistes les plus recommandés
 
