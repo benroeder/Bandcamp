@@ -137,6 +137,12 @@ sub initPlugin {
 
 	# initialize recent plays: need to add them to the LRU cache ordered by timestamp
 	my $recent_plays = $cache->get('recent_plays');
+	if (!$recent_plays || !ref $recent_plays) {
+		$log->error("Corrupted recent plays data - re-initializing");
+		main::DEBUGLOG && $log->is_debug && $log->debug(Data::Dump::dump($recent_plays));
+		$recent_plays = {};
+	}
+
 	map {
 		$recent_plays{$_} = $recent_plays->{$_};
 	} sort {
@@ -656,9 +662,8 @@ sub recently_played {
 
 	my $items = [
 		sort { lc($a->{title}) cmp lc($b->{title}) }
-		map { $recent_plays{$_} }
-		grep { $recent_plays{$_} }
-		keys %recent_plays
+		grep { $_ }
+		values %recent_plays
 	];
 
 	$items = album_list($client, \&get_item_info_by_url, {
