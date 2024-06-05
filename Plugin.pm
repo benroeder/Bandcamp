@@ -136,7 +136,7 @@ sub initPlugin {
 	) );
 
 	# initialize recent plays: need to add them to the LRU cache ordered by timestamp
-	my $recent_plays = $cache->get('recent_plays');
+	my $recent_plays = $cache->get('recent_plays') || {};
 	if (!$recent_plays || !ref $recent_plays) {
 		$log->error("Corrupted recent plays data - re-initializing");
 		main::DEBUGLOG && $log->is_debug && $log->debug(Data::Dump::dump($recent_plays));
