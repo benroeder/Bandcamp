@@ -168,7 +168,8 @@ PLUGIN_BANDCAMP_USERNAME
 
 PLUGIN_BANDCAMP_USERNAME_DESC
 	DE	Bitte geben Sie den Benutzernamen ihrer Fan-Seite auf bandcamp.com an.
-	EN	Please enter your bandcamp.com fan page username.
+	DE	Dein <a href="https://bandcamp.com" target="_blank">bandcamp.com</a> Benutzername. Melde dich bei Bandcamp an, gehe zu "Settings", dann "Fan". Hier wird der Benutzername angezeigt.
+	EN	Your <a href="https://bandcamp.com" target="_blank">bandcamp.com</a> username. Log in to your Bandcamp page. Click on Settings, then click Fan. This page shows your username.
 	FR	Veuillez indiquer le nom d’utilisateur de votre page de fan sur bandcamp.com.
 
 PLUGIN_BANDCAMP_NOT_STREAMABLE
@@ -206,8 +207,8 @@ PLUGIN_BANDCAMP_IDENTITY_TOKEN
 	FR	Cookie d'identité
 
 PLUGIN_BANDCAMP_IDENTITY_TOKEN_DESC
-	DE	Das Identitäts-Cookie erlaubt es, auf Inhalte Zugriffe zu erhalten, die sonst nicht verfügbar sind. Es muss im Browser, in welchem du dich bei bandcamp.com angemeldet hast, exportiert werden. Es hat die Form "identity=6%0909ddd7..;", mit einer langen Zeichenkette.
-	EN	The identity cookie gives you access to resource which otherwise would not be available to you. You have to export it from your browser with which you're logged in to bandcamp.com. It looks like "identity=6%0909ddd7..;" with a large number of characters.
+	DE	Das Identitäts-Cookie. Leider ist das Finden des Cookies in jedem Browser anders. In <a href="/plugins/Bandcamp/html/cookies.html" target="_blank">diesem Dokument</a> gibt es weiterführende Informationen.
+	EN	Your identity cookie. Finding the identity cookie is different for each browser. See <a href="/plugins/Bandcamp/html/cookies.html" target="_blank">this document</a> for more information.
 	FR	Le cookie d'identité vous donne accès à des ressources qui, autrement, ne seraient pas disponibles. Vous devez l'exporter depuis votre navigateur avec lequel vous êtes connecté à bandcamp.com. Il est de la forme "identity=6%0909ddd7 ..;" suivi d'un grand nombre de caractères.
 
 PLUGIN_BANDCAMP_IDENTITY_TOKEN_INVALID
