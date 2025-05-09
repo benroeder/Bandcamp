@@ -48,9 +48,9 @@ PLUGIN_BANDCAMP_FAN_FOLLOWERS
 	EN	Followers
 
 PLUGIN_BANDCAMP_FAN_MISSING
-	DE	Bitte geben Sie im Logitech Media Server unter Einstellungen/Erweitert/Band's Campout ihren bandcamp.com Benutzernamen ein.
-	EN	Please enter your basecamp.com username in Settings/Advanced/Band's Campout in Logitech Media Server.
-	FR	Veuillez saisir votre nom d'utilisateur bandcamp.com dans "Paramètres/Avancé/Band's Campout" (dans Logitech Media Server).
+	DE	Bitte geben Sie im Lyrion Music Server unter Einstellungen/Erweitert/Band's Campout ihren bandcamp.com Benutzernamen ein.
+	EN	Please enter your basecamp.com username in Settings/Advanced/Band's Campout in Lyrion Music Server.
+	FR	Veuillez saisir votre nom d'utilisateur bandcamp.com dans "Paramètres/Avancé/Band's Campout" (dans Lyrion Music Server).
 
 PLUGIN_BANDCAMP_TOPSELLERS
 	DE	Top verkaufte Alben
