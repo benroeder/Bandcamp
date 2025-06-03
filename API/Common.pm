@@ -134,6 +134,8 @@ sub cache_track_info {
 			$track->{streaming_url} = $url;
 		}
 
+		$track->{streaming_url} = HTML::Entities::decode_entities($track->{streaming_url});
+
 		$track->{title} = HTML::Entities::decode_entities($track->{title});
 		$track->{number} ||= $track->{track_number} || $track->{track_number};
 
