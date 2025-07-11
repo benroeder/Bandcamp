@@ -802,6 +802,24 @@ sub get_album {
 	);
 }
 
+sub get_playlist {
+	my ($client, $cb, $params, $args) = @_;
+
+	Plugins::Bandcamp::Scraper::get_playlist_page($client,
+		sub {
+			my $playlist = shift;
+
+			my $items = track_list($client, { tracks => $playlist }, {
+				params => $params,
+			});
+
+			$cb->( $items, @_ );
+		},
+		$params,
+		$args
+	);
+}
+
 sub get_track {
 	my ($client, $cb, $params, $args) = @_;
 
@@ -843,6 +861,11 @@ sub get_item_info_by_url {
 		get_tag_items($client, $cb, $params, {
 			tag_url => $args->{album_url}
 		});
+	}
+
+	# https://bandcamp.com/alynsparkes/playlist/pieces-of-eight
+	elsif ($args->{url} =~ m|bandcamp\.com/.*?/playlist/|) {
+		get_playlist($client, $cb, $params, $args);
 	}
 
 	# Search by tag URL

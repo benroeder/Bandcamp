@@ -142,6 +142,63 @@ sub get_album_info {
 	);
 }
 
+sub get_playlist_page {
+	my ( $client, $cb, $params, $args ) = @_;
+
+	my $url = $args->{url} || '';
+
+	main::DEBUGLOG && $log->debug("Getting playlist page: $url");
+
+	_get($client,
+		$cb,
+		sub {
+			my $tree   = shift;
+			my $result = [];
+
+			my $playlistPage = $tree->look_down("_tag", "div", "id", "PlaylistPage");
+
+			if ($playlistPage) {
+				my $data = $playlistPage->attr('data-blob');
+
+				$data = eval { from_json( Encode::encode( 'utf8', $data) ) };
+
+				if ($@ || !$data) {
+					$log->error($@);
+				}
+				elsif ( ref $data && $data->{appData} && (my $trackData = $data->{appData}->{tracks}) ) {
+					my $playlist = {
+						url => $url,
+						title => $data->{appData}->{title} || '',
+						description => $data->{appData}->{description} || '',
+						playlist_id => $data->{appData}->{playlistId} || '',
+						art_lg_url => $data->{appData}->{imageId} || '',
+					};
+
+					$result = [ map {
+						my $track = $trackData->{$_};
+						$track->{number} = $_;
+
+						if ($track->{album} && ref $track->{album}) {
+							my $album = $track->{album};
+							$track->{streaming_url} = $track->{streamUrl};
+							$track->{album_url} = $album->{url};
+							$track->{album} = $album->{title};
+						}
+						cache_track_info($track, $playlist);
+					} sort keys %$trackData ];
+				}
+			}
+
+			$cache->set( $url, $result, USER_CACHE_TTL ) if scalar @$result;
+
+			return $result;
+		},
+		$params,
+		$url,
+		$url
+	);
+}
+
 sub get_fan_page {
 	my ( $client, $cb, $params, $args ) = @_;
 

@@ -141,7 +141,7 @@ sub cache_track_info {
 
 		# use album information to complete track information if available
 		if ($album) {
-			$track->{artist} ||= $album->{artist};
+			$track->{artist} ||= $album->{artist} || $track->{artistName};
 			$track->{album}  ||= $album->{title};
 			$track->{image}  ||= $track->{art_lg_url} || $track->{large_art_url} || $album->{art_lg_url} || $album->{large_art_url} || $album->{small_art_url};
 			$track->{album_url} ||= $album->{url};
