@@ -26,6 +26,9 @@ use constant DAILY_URL     => 'https://daily.bandcamp.com';
 # not officially documented, but worth moving to the API module?
 use constant API_URL_SALES => BASE_URL . 'api/salesfeed/1/get?start_date=';
 use constant DISCOVERY_URL => BASE_URL . 'api/discover/3/get_web?p=0&';
+use constant GENRES_URL    => BASE_URL . 'api/discover/1/discover_web';
+
+use constant MAX_ITEMS => 100;
 
 my $log = logger('plugin.bandcamp');
 
@@ -515,61 +518,39 @@ sub _parse_band_element {
 
 sub get_tag_items {
 	my ($client, $cb, $params, $args) = @_;
+	$params ||= {};
+
+	my ($tag) = reverse split(/\//, $args->{tag_url} || '');
 
 	_get($client,
 		sub {
+			my $results = shift || {};
+			my $items = [ map {
+				{
+					artist        => decode_entities($_->{album_artist} || $_->{band_name}),
+					title         => decode_entities($_->{title}),
+					band_id       => $_->{band_id},
+					large_art_url => get_artwork_url_from_id($_->{item_image_id}),
+					url           => $_->{item_url},
+				}
+			} @{$results->{results} || []} ];
+
 			$cb->({
-				discography => shift
+				discography => $items
 			});
 		},
-		sub {
-			my $tree   = shift;
-			my $result = [];
-
-			my $collection = $tree->look_down("_tag", "div", "id", "pagedata");
-
-			if ($collection) {
-				my $data = $collection->attr('data-blob');
-
-				$data = eval { from_json( Encode::encode( 'utf8', $data) ) };
-
-				if ($@ || !$data || !ref $data) {
-					$log->error($@);
-				}
-				else {
-					if ($data->{hub} && $data->{hub}->{tabs} && (my $tabs = $data->{hub}->{tabs})) {
-						foreach my $tab (@$tabs) {
-							if ($tab && ref $tab && $tab->{dig_deeper} && (my $results = $tab->{dig_deeper}->{results})) {
-								foreach my $filteredResult (values %$results) {
-									if ($filteredResult && ref $filteredResult && (my $items = $filteredResult->{items})) {
-										foreach (@$items) {
-											next unless $_->{item_type} && $_->{item_type} =~ /^[atp]$/;
-
-											my $meta = {
-												artist => decode_entities($_->{artist}),
-												band_id => $_->{band_id},
-												title  => decode_entities($_->{title}),
-												large_art_url => get_artwork_url_from_id($_->{art_id}),
-												url    => $_->{tralbum_url},
-											};
-
-											push @$result, $meta;
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-
-				$cache->set( 'tag_album_' . $args->{tag_url}, $result, CACHE_TTL );
-			}
-
-			return $result;
+		sub {},
+		{
+			%$params,
+			postBody => {
+				'tag_norm_names' => [$tag],
+				'slice' => 'top',
+				'size' => MAX_ITEMS,
+				'include_result_types' => ['a', 's']
+			},
 		},
-		$params,
-		'tag_album_' . $args->{tag_url},
-		$args->{tag_url}
+		'tag_albums_' . $args->{tag_url},
+		GENRES_URL
 	);
 }
 
@@ -889,6 +870,8 @@ sub _get {
 	}
 
 	$url = BASE_URL . $url if $url =~ m|^/|;
+	# remove double slashes in the URL (happens sometimes in the tag URLs)
+	$url =~ s/(\.com)\/\//$1\//g;
 
 	main::INFOLOG && $log->is_info && $log->info("GETting $url");
 
@@ -939,7 +922,14 @@ sub _get {
 			client  => $client,
 			timeout => 30,
 		},
-	)->get($url);
+	);
+
+	if ($params->{postBody}) {
+		$http->post($url, 'Content-Type' => 'application/json', to_json($params->{postBody}));
+	}
+	else {
+		$http->get($url);
+	}
 }
 
 # sub _shall_cache {

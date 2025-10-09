@@ -705,7 +705,7 @@ sub get_tag_items {
 	Plugins::Bandcamp::Scraper::get_tag_items($client,
 		sub {
 			my $items = shift;
-			$cb->( album_list($client, \&get_item_info_by_url, $items) );
+			$cb->( album_list($client, \&get_item_info_by_url, $items, $args) );
 		},
 		$params,
 		$args,
@@ -1066,7 +1066,7 @@ sub tag_list {
 			textkey => substr( uc($item->{name}), 0, 1 ),
 			url  => \&get_tag_items,
 			type => 'link',
-			passthrough => [ { tag_url => $item->{url} } ]
+			passthrough => [ { tag_url => $item->{url},  dontSort => 1 } ]
 		}
 	}
 
