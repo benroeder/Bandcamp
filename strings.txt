@@ -238,3 +238,10 @@ PLUGIN_BANDCAMP_ALBUMS_PROGRESS
 	EN	Bandcamp Albums
 	NL	Bandcamp Albums
 	FR	Bandcamp Albums
+
+PLUGIN_BANDCAMP_CLEAR_SEARCH_HISTORY
+	DE	Suchverlauf löschen
+	EN	Clear search history
+	ES	Limpiar historial de búsqueda
+	FR	Effacer l'historique de recherche
+	NL	Verwijder zoekgeschiedenis

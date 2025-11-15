@@ -87,6 +87,13 @@ sub initPlugin {
 	Plugins::Bandcamp::Scraper::init( $cache );
 	Plugins::Bandcamp::Search::init( $cache );
 
+#                                                                            |requires Client
+#                                                                            |  |is a Query
+#                                                                            |  |  |has Tags
+#                                                                            |  |  |  |Function to call
+#                                                                            C  Q  T  F
+	Slim::Control::Request::addDispatch(['bandcamp', 'recentsearches'], [1, 0, 1, \&Plugins::Bandcamp::Search::recent_searches_cli]);
+
 	$class->SUPER::initPlugin(
 		feed   => \&handleFeed,
 		tag    => PLUGIN_TAG,

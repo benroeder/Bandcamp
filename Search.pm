@@ -260,6 +260,10 @@ sub add_recent_search {
 		ts => time(),
 	};
 
+	_save_recent_searches();
+}
+
+sub _save_recent_searches {
 	# don't cache %recent_searches directly, as it's a Tie::Cache::LRU object
 	$cache->set('recent_searches', { map {
 		$_ => $recent_searches{$_}
@@ -282,6 +286,12 @@ sub recent_searches {
 			type => 'link',
 			name => $_,
 			url  => \&search,
+			itemActions => {
+				info => {
+					command     => ['bandcamp', 'recentsearches'],
+					fixedParams => { deleteMenu => $_ },
+				},
+			},
 			passthrough => [{
 				q => $_
 			}],
@@ -296,6 +306,75 @@ sub recent_searches {
 	$cb->({
 		items => $items
 	});
+}
+
+sub recent_searches_cli {
+	my $request = shift;
+	my $client = $request->client;
+	main::DEBUGLOG && $log->is_debug && $log->debug("++recent_searches_cli");
+
+	# check this is the correct command.
+	if ($request->isNotCommand([['bandcamp'], ['recentsearches']])) {
+		$request->setStatusBadDispatch();
+		return;
+	}
+
+	my $del = $request->getParam('deleteMenu') // $request->getParam('delete');
+	if (!$request->getParam('deleteAll') && defined $del && !exists $recent_searches{$del}) {
+		$log->error('Search item to delete is not in the history list!');
+		$request->setStatusBadParams();
+		return;
+	}
+
+	my $items = [];
+
+	if (defined $request->getParam('deleteMenu')) {
+		push @$items,
+		{
+			text => cstring($client, 'DELETE') . cstring($client, 'COLON') . ' "' . $del . '"',
+			actions => {
+				go => {
+					player => 0,
+					cmd    => ['bandcamp', 'recentsearches' ],
+					params => {
+						delete => $del
+					},
+				},
+			},
+			nextWindow => 'parent',
+		},
+		{
+			text => cstring($client, 'PLUGIN_BANDCAMP_CLEAR_SEARCH_HISTORY'),
+			actions => {
+				go => {
+					player => 0,
+					cmd    => ['bandcamp', 'recentsearches' ],
+					params => {
+						deleteAll => 1
+					},
+				}
+			},
+			nextWindow => 'grandParent',
+		};
+
+		$request->addResult('offset', 0);
+		$request->addResult('count', scalar @$items);
+		$request->addResult('item_loop', $items);
+	} elsif (defined $request->getParam('deleteAll') || defined $request->getParam('delete')) {
+		if (defined $request->getParam('delete')) {
+			delete $recent_searches{$del};
+		} else {
+			%recent_searches = ();
+		}
+
+		_save_recent_searches();
+	}
+	else {
+		$request->setStatusBadParams();
+	}
+
+	$request->setStatusDone;
+	main::DEBUGLOG && $log->is_debug && $log->debug("--recent_searches_cli");
 }
 
 1;
