@@ -245,3 +245,6 @@ PLUGIN_BANDCAMP_CLEAR_SEARCH_HISTORY
 	ES	Limpiar historial de búsqueda
 	FR	Effacer l'historique de recherche
 	NL	Verwijder zoekgeschiedenis
+
+PLUGIN_BANDCAMP_CLEAR_RECENTLY_PLAYED_ALBUMS
+	EN	Clear recently played albums

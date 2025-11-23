@@ -92,6 +92,7 @@ sub initPlugin {
 #                                                                            |  |  |has Tags
 #                                                                            |  |  |  |Function to call
 #                                                                            C  Q  T  F
+	Slim::Control::Request::addDispatch(['bandcamp', 'recentlyplayed'], [1, 0, 1, \&Plugins::Bandcamp::Plugin::recently_played_cli]);
 	Slim::Control::Request::addDispatch(['bandcamp', 'recentsearches'], [1, 0, 1, \&Plugins::Bandcamp::Search::recent_searches_cli]);
 
 	$class->SUPER::initPlugin(
@@ -700,9 +701,90 @@ sub recently_played {
 		discography => $items
 	});
 
+	foreach (@$items) {
+		my $name = $_->{'line1'};
+		$_->{itemActions} = {
+			info => {
+				command     => ['bandcamp', 'recentlyplayed'],
+				fixedParams => { deleteMenu => $name },
+			},
+		};
+	}
+
 	$cb->({
 		items => $items
 	});
+}
+
+sub recently_played_cli {
+	my $request = shift;
+	my $client = $request->client;
+	main::DEBUGLOG && $log->is_debug && $log->debug("++recently_played_cli");
+
+	# check this is the correct command.
+	if ($request->isNotCommand([['bandcamp'], ['recentlyplayed']])) {
+		$request->setStatusBadDispatch();
+		return;
+	}
+
+	my $del = $request->getParam('deleteMenu') // $request->getParam('delete');
+
+	my $items = [];
+
+	if (defined $request->getParam('deleteMenu')) {
+		push @$items,
+			{
+				text => cstring($client, 'DELETE') . cstring($client, 'COLON') . ' "' . $del . '"',
+				actions => {
+					go => {
+						player => 0,
+						cmd    => ['bandcamp', 'recentlyplayed' ],
+						params => {
+							delete => $del
+						},
+					},
+				},
+				nextWindow => 'parent',
+			},
+			{
+				text => cstring($client, 'PLUGIN_BANDCAMP_CLEAR_RECENTLY_PLAYED_ALBUMS'),
+				actions => {
+					go => {
+						player => 0,
+						cmd    => ['bandcamp', 'recentlyplayed' ],
+						params => {
+							deleteAll => 1
+						},
+					}
+				},
+				nextWindow => 'grandParent',
+			};
+
+		$request->addResult('offset', 0);
+		$request->addResult('count', scalar @$items);
+		$request->addResult('item_loop', $items);
+	} elsif (defined $request->getParam('deleteAll') || defined $request->getParam('delete')) {
+		if (defined $request->getParam('delete')) {
+			delete $recent_plays{$del};
+		} else {
+			%recent_plays = ();
+		}
+
+		_save_recently_played();
+	}
+	else {
+		$request->setStatusBadParams();
+	}
+
+	$request->setStatusDone;
+	main::DEBUGLOG && $log->is_debug && $log->debug("--recent_searches_cli");
+}
+
+sub _save_recently_played {
+	# don't cache %recent_searches directly, as it's a Tie::Cache::LRU object
+	$cache->set('recent_plays', { map {
+		$_ => $recent_plays{$_}
+	} keys %recent_plays }, RECENT_CACHE_TTL);
 }
 
 sub get_tags {
@@ -978,7 +1060,7 @@ sub metadata_provider {
 					ts       => time(),
 				};
 
-				$cache->set('recent_plays', \%recent_plays, RECENT_CACHE_TTL);
+				_save_recently_played();
 			}
 
 			$cached->{album_url} =~ s/\?pk=.*//;
