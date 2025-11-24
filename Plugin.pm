@@ -206,6 +206,17 @@ sub initPlugin {
 	}
 }
 
+sub postinitPlugin {
+	my $class = shift;
+
+	if ( Slim::Utils::PluginManager->isEnabled('Plugins::MaterialSkin::Plugin') && Plugins::MaterialSkin::Plugin->can('registerHomeExtra') ) {
+		eval {
+			require Plugins::Bandcamp::HomeExtras;
+		};
+		$log->error("Could not load Bandcamp Home Extras: $@") if $@;
+	}
+}
+
 sub getDisplayName { 'PLUGIN_BANDCAMP' }
 
 # don't add this plugin to the Extras menu
@@ -216,6 +227,18 @@ sub handleFeed {
 	my ($client, $cb, $args) = @_;
 
 	my $params = $args->{params};
+
+	if ($args->{params} && (my $menu = $args->{params}->{menu})) {
+		if ($menu eq 'home_heroes_daily') {
+			return get_daily_shows( $client, $cb );
+		}
+		elsif ($menu eq 'home_heroes_weekly') {
+			return get_weekly_shows( $client, $cb );
+		}
+		elsif ($menu eq 'home_heroes_recently_played') {
+			return recently_played( $client, $cb );
+		}
+	}
 
 	my $items = [
 		{
