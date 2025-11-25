@@ -154,7 +154,7 @@ sub initPlugin {
 	map {
 		$recent_plays{$_} = $recent_plays->{$_};
 	} sort {
-		$recent_plays->{$a}->{ts} <=> $recent_plays->{$a}->{ts}
+		$recent_plays->{$a}->{ts} <=> $recent_plays->{$b}->{ts}
 	} keys %$recent_plays;
 
 	# try to load custom artwork handler - requires recent LMS 7.8 with new image proxy
