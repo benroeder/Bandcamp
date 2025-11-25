@@ -702,11 +702,13 @@ sub recently_played {
 	});
 
 	foreach (@$items) {
-		my $name = $_->{'line1'};
+		my $album_key = eval { $_->{passthrough}[0]->{album_url} } // '';
+		my $title = $_->{'line1'} // '';
+		next unless $album_key ne '';
 		$_->{itemActions} = {
 			info => {
 				command     => ['bandcamp', 'recentlyplayed'],
-				fixedParams => { deleteMenu => $name },
+				fixedParams => { deleteMenu => $album_key, title => $title },
 			},
 		};
 	}
@@ -727,20 +729,21 @@ sub recently_played_cli {
 		return;
 	}
 
-	my $del = $request->getParam('deleteMenu') // $request->getParam('delete');
+	my $album_key = $request->getParam('deleteMenu') // $request->getParam('delete');
+	my $title = $request->getParam('title');
 
 	my $items = [];
 
 	if (defined $request->getParam('deleteMenu')) {
 		push @$items,
 			{
-				text => cstring($client, 'DELETE') . cstring($client, 'COLON') . ' "' . $del . '"',
+				text => cstring($client, 'DELETE') . cstring($client, 'COLON') . ' "' . $title . '"',
 				actions => {
 					go => {
 						player => 0,
 						cmd    => ['bandcamp', 'recentlyplayed' ],
 						params => {
-							delete => $del
+							delete => $album_key
 						},
 					},
 				},
@@ -765,7 +768,7 @@ sub recently_played_cli {
 		$request->addResult('item_loop', $items);
 	} elsif (defined $request->getParam('deleteAll') || defined $request->getParam('delete')) {
 		if (defined $request->getParam('delete')) {
-			delete $recent_plays{$del};
+			delete $recent_plays{$album_key};
 		} else {
 			%recent_plays = ();
 		}
@@ -1050,8 +1053,8 @@ sub metadata_provider {
 			my $song = $client->playingSong();
 
 			# keep track of the albums we're playing
-			if ( (my $title = ($cached->{album} || $cached->{title})) && $song && $song->track->url eq $url ) {
-				$recent_plays{$title} = {
+			if ( (my $title = ($cached->{album} || $cached->{title})) && (my $album_key = $cached->{album_url}) && $song && $song->track->url eq $url ) {
+				$recent_plays{$album_key} = {
 					title    => $title,
 					url      => $cached->{album_url},
 					artist   => $cached->{artist},
