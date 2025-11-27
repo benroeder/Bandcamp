@@ -151,6 +151,15 @@ sub initPlugin {
 		$recent_plays = {};
 	}
 
+	# recent_plays was previously keyed by album title, which could cause collisions. Rekey to album url.
+	foreach my $key (keys %$recent_plays) {
+		my $item = $recent_plays->{$key};
+		if ($item->{title} == $key) {
+			delete $recent_plays->{$key};
+			$recent_plays->{$item->{url}} = $item;
+		}
+	}
+
 	map {
 		$recent_plays{$_} = $recent_plays->{$_};
 	} sort {
