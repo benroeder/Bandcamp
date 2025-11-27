@@ -247,4 +247,5 @@ PLUGIN_BANDCAMP_CLEAR_SEARCH_HISTORY
 	NL	Verwijder zoekgeschiedenis
 
 PLUGIN_BANDCAMP_CLEAR_RECENTLY_PLAYED_ALBUMS
+	DE	Lösche Albenverlauf
 	EN	Clear recently played albums
