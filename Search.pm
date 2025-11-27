@@ -311,7 +311,6 @@ sub recent_searches {
 sub recent_searches_cli {
 	my $request = shift;
 	my $client = $request->client;
-	main::DEBUGLOG && $log->is_debug && $log->debug("++recent_searches_cli");
 
 	# check this is the correct command.
 	if ($request->isNotCommand([['bandcamp'], ['recentsearches']])) {
@@ -374,7 +373,6 @@ sub recent_searches_cli {
 	}
 
 	$request->setStatusDone;
-	main::DEBUGLOG && $log->is_debug && $log->debug("--recent_searches_cli");
 }
 
 1;

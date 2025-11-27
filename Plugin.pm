@@ -721,7 +721,6 @@ sub recently_played {
 sub recently_played_cli {
 	my $request = shift;
 	my $client = $request->client;
-	main::DEBUGLOG && $log->is_debug && $log->debug("++recently_played_cli");
 
 	# check this is the correct command.
 	if ($request->isNotCommand([['bandcamp'], ['recentlyplayed']])) {
@@ -780,7 +779,6 @@ sub recently_played_cli {
 	}
 
 	$request->setStatusDone;
-	main::DEBUGLOG && $log->is_debug && $log->debug("--recent_searches_cli");
 }
 
 sub _save_recently_played {
