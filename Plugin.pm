@@ -702,13 +702,12 @@ sub recently_played {
 	});
 
 	foreach (@$items) {
-		my $album_key = eval { $_->{passthrough}[0]->{album_url} } // '';
-		my $title = $_->{'line1'} // '';
-		next unless $album_key ne '';
+		my $key = $_->{passthrough}[0]->{album_url};
+		my $title = $_->{passthrough}[0]->{title};
 		$_->{itemActions} = {
 			info => {
 				command     => ['bandcamp', 'recentlyplayed'],
-				fixedParams => { deleteMenu => $album_key, title => $title },
+				fixedParams => { deleteMenu => $key, title => $title },
 			},
 		};
 	}
@@ -1226,6 +1225,7 @@ sub album_list {
 			url   => $cb,
 			image => $_->{art_lg_url} || $_->{large_art_url} || $_->{small_art_url} || $_->{image} || __PACKAGE__->_pluginDataFor('icon'),
 			passthrough => [{
+				title     => $_->{title},
 				album_id  => $_->{album_id},
 				album_url => $_->{url},
 				url       => $_->{url},
