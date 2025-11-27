@@ -727,7 +727,7 @@ sub recently_played_cli {
 		return;
 	}
 
-	my $album_key = $request->getParam('deleteMenu') // $request->getParam('delete');
+	my $key = $request->getParam('deleteMenu') // $request->getParam('delete');
 	my $title = $request->getParam('title');
 
 	my $items = [];
@@ -741,7 +741,7 @@ sub recently_played_cli {
 						player => 0,
 						cmd    => ['bandcamp', 'recentlyplayed' ],
 						params => {
-							delete => $album_key
+							delete => $key
 						},
 					},
 				},
@@ -764,13 +764,11 @@ sub recently_played_cli {
 		$request->addResult('offset', 0);
 		$request->addResult('count', scalar @$items);
 		$request->addResult('item_loop', $items);
-	} elsif (defined $request->getParam('deleteAll') || defined $request->getParam('delete')) {
-		if (defined $request->getParam('delete')) {
-			delete $recent_plays{$album_key};
-		} else {
-			%recent_plays = ();
-		}
-
+	} elsif (defined $request->getParam('delete')) {
+		delete $recent_plays{$key};
+		_save_recently_played();
+	} elsif (defined $request->getParam('deleteAll')) {
+		%recent_plays = ();
 		_save_recently_played();
 	}
 	else {

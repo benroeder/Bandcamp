@@ -359,13 +359,11 @@ sub recent_searches_cli {
 		$request->addResult('offset', 0);
 		$request->addResult('count', scalar @$items);
 		$request->addResult('item_loop', $items);
-	} elsif (defined $request->getParam('deleteAll') || defined $request->getParam('delete')) {
-		if (defined $request->getParam('delete')) {
-			delete $recent_searches{$del};
-		} else {
-			%recent_searches = ();
-		}
-
+	} elsif (defined $request->getParam('delete')) {
+		delete $recent_searches{$del};
+		_save_recent_searches();
+	} elsif (defined $request->getParam('deleteAll')) {
+		%recent_searches = ();
 		_save_recent_searches();
 	}
 	else {
