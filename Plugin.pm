@@ -4,6 +4,7 @@ use strict;
 use base qw(Slim::Plugin::OPMLBased);
 use JSON::XS::VersionOneAndTwo;
 use Tie::Cache::LRU;
+use version;
 
 use Slim::Formats::RemoteMetadata;
 use Slim::Menu::GlobalSearch;
@@ -151,13 +152,21 @@ sub initPlugin {
 		$recent_plays = {};
 	}
 
-	# recent_plays was previously keyed by album title, which could cause collisions. Rekey to album url.
-	foreach my $key (keys %$recent_plays) {
-		my $item = $recent_plays->{$key};
-		if ($item->{title} == $key) {
-			delete $recent_plays->{$key};
-			$recent_plays->{$item->{url}} = $item;
+	my $recent_plays_version = $cache->get('recent_plays_version') || '0.0';
+	my $v2 = '2.0';
+	if (version->parse($recent_plays_version) < version->parse($v2)) {
+		if (%$recent_plays) {
+			main::INFOLOG && $log->is_info && $log->info("Re-keying recently played data by URL");
+			my $migrated_recent_plays = {};
+			foreach my $key (keys %$recent_plays) {
+				my $item = $recent_plays->{$key};
+				$migrated_recent_plays->{$item->{url}} = $item;
+			}
+			$recent_plays = $migrated_recent_plays;
+			$cache->set('recent_plays', $recent_plays, RECENT_CACHE_TTL);
 		}
+
+		$cache->set('recent_plays_version', $v2);
 	}
 
 	map {
