@@ -4,7 +4,6 @@ use strict;
 use base qw(Slim::Plugin::OPMLBased);
 use JSON::XS::VersionOneAndTwo;
 use Tie::Cache::LRU;
-use Slim::Utils::Versions;
 
 use Slim::Formats::RemoteMetadata;
 use Slim::Menu::GlobalSearch;
@@ -32,6 +31,7 @@ use constant STREAM_URL_REGEX => qr{(?:bcbits|bandcamp)\.com/(?:download/track|s
 use constant IMAGES_URL_REGEX => qr{f0\.bcbits\.com/(?:img|z)/};
 use constant MAX_RECENT_ITEMS => 50;
 use constant RECENT_CACHE_TTL => 'never';
+use constant RECENT_CACHE_KEY => 'recent_plays_v2';
 
 my $cache;
 
@@ -145,28 +145,21 @@ sub initPlugin {
 	) );
 
 	# initialize recent plays: need to add them to the LRU cache ordered by timestamp
-	my $recent_plays = $cache->get('recent_plays') || {};
+	my $recent_plays = $cache->get(RECENT_CACHE_KEY) || undef;
+	my $old_recent_plays;
+	if ((!$recent_plays || !ref $recent_plays) && ($old_recent_plays = $cache->get('recent_plays')) && ref $old_recent_plays) {
+		main::INFOLOG && $log->is_info && $log->info("Re-keying recently played data by URL");
+		foreach my $item (values %$old_recent_plays) {
+			$recent_plays->{$item->{url}} = $item;
+		}
+		$cache->set(RECENT_CACHE_KEY, $recent_plays, RECENT_CACHE_TTL);
+		$cache->remove('recent_plays')
+	}
+
 	if (!$recent_plays || !ref $recent_plays) {
 		main::INFOLOG && $log->is_info && $log->info("Corrupted recent plays data - re-initializing");
 		main::DEBUGLOG && $log->is_debug && $log->debug(Data::Dump::dump($recent_plays));
 		$recent_plays = {};
-	}
-
-	my $recent_plays_version = $cache->get('recent_plays_version') || '0.0';
-	if (version->parse($recent_plays_version) < version->parse('2.0')) {
-		if (%$recent_plays) {
-			main::INFOLOG && $log->is_info && $log->info("Re-keying recently played data by URL");
-			my @keys = keys %$recent_plays;
-			foreach my $key (@keys) {
-				my $item = $recent_plays->{$key};
-				$recent_plays->{$item->{url}} = $item;
-				delete $recent_plays->{$key};
-			}
-			$cache->set('recent_plays', $recent_plays, RECENT_CACHE_TTL);
-		}
-
-		$recent_plays_version = '2.0';
-		$cache->set('recent_plays_version', $recent_plays_version);
 	}
 
 	map {
@@ -798,7 +791,7 @@ sub recently_played_cli {
 
 sub _save_recently_played {
 	# don't cache %recent_searches directly, as it's a Tie::Cache::LRU object
-	$cache->set('recent_plays', { map {
+	$cache->set(RECENT_CACHE_KEY, { map {
 		$_ => $recent_plays{$_}
 	} keys %recent_plays }, RECENT_CACHE_TTL);
 }
