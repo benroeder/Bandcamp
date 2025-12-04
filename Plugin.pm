@@ -31,6 +31,7 @@ use constant STREAM_URL_REGEX => qr{(?:bcbits|bandcamp)\.com/(?:download/track|s
 use constant IMAGES_URL_REGEX => qr{f0\.bcbits\.com/(?:img|z)/};
 use constant MAX_RECENT_ITEMS => 50;
 use constant RECENT_CACHE_TTL => 'never';
+use constant RECENT_CACHE_KEY => 'recent_plays_v2';
 
 my $cache;
 
@@ -87,6 +88,14 @@ sub initPlugin {
 	Plugins::Bandcamp::Scraper::init( $cache );
 	Plugins::Bandcamp::Search::init( $cache );
 
+#                                                                            |requires Client
+#                                                                            |  |is a Query
+#                                                                            |  |  |has Tags
+#                                                                            |  |  |  |Function to call
+#                                                                            C  Q  T  F
+	Slim::Control::Request::addDispatch(['bandcamp', 'recentlyplayed'], [1, 0, 1, \&Plugins::Bandcamp::Plugin::recently_played_cli]);
+	Slim::Control::Request::addDispatch(['bandcamp', 'recentsearches'], [1, 0, 1, \&Plugins::Bandcamp::Search::recent_searches_cli]);
+
 	$class->SUPER::initPlugin(
 		feed   => \&handleFeed,
 		tag    => PLUGIN_TAG,
@@ -136,7 +145,17 @@ sub initPlugin {
 	) );
 
 	# initialize recent plays: need to add them to the LRU cache ordered by timestamp
-	my $recent_plays = $cache->get('recent_plays') || {};
+	my $recent_plays = $cache->get(RECENT_CACHE_KEY) || undef;
+	my $old_recent_plays;
+	if ((!$recent_plays || !ref $recent_plays) && ($old_recent_plays = $cache->get('recent_plays')) && ref $old_recent_plays) {
+		main::INFOLOG && $log->is_info && $log->info("Re-keying recently played data by URL");
+		foreach my $item (values %$old_recent_plays) {
+			$recent_plays->{$item->{url}} = $item;
+		}
+		$cache->set(RECENT_CACHE_KEY, $recent_plays, RECENT_CACHE_TTL);
+		$cache->remove('recent_plays')
+	}
+
 	if (!$recent_plays || !ref $recent_plays) {
 		main::INFOLOG && $log->is_info && $log->info("Corrupted recent plays data - re-initializing");
 		main::DEBUGLOG && $log->is_debug && $log->debug(Data::Dump::dump($recent_plays));
@@ -146,7 +165,7 @@ sub initPlugin {
 	map {
 		$recent_plays{$_} = $recent_plays->{$_};
 	} sort {
-		$recent_plays->{$a}->{ts} <=> $recent_plays->{$a}->{ts}
+		$recent_plays->{$a}->{ts} <=> $recent_plays->{$b}->{ts}
 	} keys %$recent_plays;
 
 	# try to load custom artwork handler - requires recent LMS 7.8 with new image proxy
@@ -693,9 +712,88 @@ sub recently_played {
 		discography => $items
 	});
 
+	foreach (@$items) {
+		my $key = $_->{passthrough}->[0]->{album_url};
+		my $title = $_->{passthrough}->[0]->{title};
+		$_->{itemActions} = {
+			info => {
+				command     => ['bandcamp', 'recentlyplayed'],
+				fixedParams => { deleteMenu => $key, title => $title },
+			},
+		};
+	}
+
 	$cb->({
 		items => $items
 	});
+}
+
+sub recently_played_cli {
+	my $request = shift;
+	my $client = $request->client;
+
+	# check this is the correct command.
+	if ($request->isNotCommand([['bandcamp'], ['recentlyplayed']])) {
+		$request->setStatusBadDispatch();
+		return;
+	}
+
+	my $key = $request->getParam('deleteMenu') // $request->getParam('delete');
+	my $title = $request->getParam('title');
+
+	my $items = [];
+
+	if (defined $request->getParam('deleteMenu')) {
+		push @$items,
+			{
+				text => cstring($client, 'DELETE') . cstring($client, 'COLON') . ' "' . $title . '"',
+				actions => {
+					go => {
+						player => 0,
+						cmd    => ['bandcamp', 'recentlyplayed' ],
+						params => {
+							delete => $key
+						},
+					},
+				},
+				nextWindow => 'parent',
+			},
+			{
+				text => cstring($client, 'PLUGIN_BANDCAMP_CLEAR_RECENTLY_PLAYED_ALBUMS'),
+				actions => {
+					go => {
+						player => 0,
+						cmd    => ['bandcamp', 'recentlyplayed' ],
+						params => {
+							deleteAll => 1
+						},
+					}
+				},
+				nextWindow => 'grandParent',
+			};
+
+		$request->addResult('offset', 0);
+		$request->addResult('count', scalar @$items);
+		$request->addResult('item_loop', $items);
+	} elsif (defined $request->getParam('delete')) {
+		delete $recent_plays{$key};
+		_save_recently_played();
+	} elsif (defined $request->getParam('deleteAll')) {
+		%recent_plays = ();
+		_save_recently_played();
+	}
+	else {
+		$request->setStatusBadParams();
+	}
+
+	$request->setStatusDone;
+}
+
+sub _save_recently_played {
+	# don't cache %recent_searches directly, as it's a Tie::Cache::LRU object
+	$cache->set(RECENT_CACHE_KEY, { map {
+		$_ => $recent_plays{$_}
+	} keys %recent_plays }, RECENT_CACHE_TTL);
 }
 
 sub get_tags {
@@ -961,8 +1059,8 @@ sub metadata_provider {
 			my $song = $client->playingSong();
 
 			# keep track of the albums we're playing
-			if ( (my $title = ($cached->{album} || $cached->{title})) && $song && $song->track->url eq $url ) {
-				$recent_plays{$title} = {
+			if ( (my $title = ($cached->{album} || $cached->{title})) && (my $album_key = $cached->{album_url}) && $song && $song->track->url eq $url ) {
+				$recent_plays{$album_key} = {
 					title    => $title,
 					url      => $cached->{album_url},
 					artist   => $cached->{artist},
@@ -971,7 +1069,7 @@ sub metadata_provider {
 					ts       => time(),
 				};
 
-				$cache->set('recent_plays', \%recent_plays, RECENT_CACHE_TTL);
+				_save_recently_played();
 			}
 
 			$cached->{album_url} =~ s/\?pk=.*//;
@@ -1136,6 +1234,7 @@ sub album_list {
 			url   => $cb,
 			image => $_->{art_lg_url} || $_->{large_art_url} || $_->{small_art_url} || $_->{image} || __PACKAGE__->_pluginDataFor('icon'),
 			passthrough => [{
+				title     => $_->{title},
 				album_id  => $_->{album_id},
 				album_url => $_->{url},
 				url       => $_->{url},
