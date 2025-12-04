@@ -713,8 +713,8 @@ sub recently_played {
 	});
 
 	foreach (@$items) {
-		my $key = $_->{passthrough}[0]->{album_url};
-		my $title = $_->{passthrough}[0]->{title};
+		my $key = $_->{passthrough}->[0]->{album_url};
+		my $title = $_->{passthrough}->[0]->{title};
 		$_->{itemActions} = {
 			info => {
 				command     => ['bandcamp', 'recentlyplayed'],
