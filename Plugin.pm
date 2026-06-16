@@ -1340,11 +1340,23 @@ sub track_list {
 
 		my $title = ($track->{streaming_url} ? '' : '* ') . ((defined $track->{number} && !$args->{no_tracknumber}) ? $track->{number} . '. ' : '') . $track->{title};
 
+		# Use the durable bandcamp:// URL for the queue/favourites rather than
+		# the resolved (and expiring) streaming_url - getNextTrack re-resolves
+		# a fresh stream from it on every play, so saved items survive token
+		# expiry, matching the library Importer and the tidal:// convention.
+		# streaming_url remains the "is playable" signal; fall back to it only
+		# for the rare track that has no id.
+		my $playUrl;
+		if ($track->{streaming_url}) {
+			$playUrl = track_url($track->{track_id})
+				|| $track->{streaming_url};
+		}
+
 		if ($simpleTracks) {
 			push @$tracks, {
-				type  => $track->{streaming_url} ? 'audio' : undef,
+				type  => $playUrl ? 'audio' : undef,
 				name  => $title,
-				url   => $track->{streaming_url},
+				url   => $playUrl,
 				image => $args->{artwork} && ($track->{art_lg_url} || $track->{large_art_url}),
 				playall => 1,
 			};
@@ -1354,10 +1366,10 @@ sub track_list {
 				name  => $title,
 				line1 => $args->{artist} && $title,
 				line2 => $args->{artist} && $track->{artist} . ($args->{album} ? ($args->{artist} ? ' - ' : '') . $track->{album} : ''),
-				play  => $track->{streaming_url},
+				play  => $playUrl,
 				image => $args->{artwork} && ($track->{art_lg_url} || $track->{large_art_url}),
 				items => $trackinfo,
-				on_select   => $track->{streaming_url} ? 'play' : undef,
+				on_select   => $playUrl ? 'play' : undef,
 				playall     => 1,
 				passthrough => [{
 					track_id => $track->{track_id}

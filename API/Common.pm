@@ -5,7 +5,7 @@ use strict;
 use Exporter::Lite;
 
 our @EXPORT = qw(
-	cache_track_info get_artwork_url_from_id track_key
+	cache_track_info get_artwork_url_from_id track_key track_url
 	BASE_URL CACHE_TTL META_CACHE_TTL USER_CACHE_TTL
 );
 
@@ -186,6 +186,16 @@ sub track_key {
 	}
 
 	return '';
+}
+
+# Inverse of track_key: the durable, re-resolvable URL for a track id.
+# ProtocolHandler::getNextTrack re-resolves a fresh signed stream from a
+# bandcamp:// URL on every play, so favourites and queues built from this
+# survive the bcbits stream token expiring. Single source of truth for the
+# bandcamp:// form (previously inlined in the Importer).
+sub track_url {
+	my $id = shift;
+	return $id ? "bandcamp://$id.mp3" : undef;
 }
 
 # 0 => original (size & format, don't use extension)
