@@ -1340,12 +1340,8 @@ sub track_list {
 
 		my $title = ($track->{streaming_url} ? '' : '* ') . ((defined $track->{number} && !$args->{no_tracknumber}) ? $track->{number} . '. ' : '') . $track->{title};
 
-		# Use the durable bandcamp:// URL for the queue/favourites rather than
-		# the resolved (and expiring) streaming_url - getNextTrack re-resolves
-		# a fresh stream from it on every play, so saved items survive token
-		# expiry, matching the library Importer and the tidal:// convention.
-		# streaming_url remains the "is playable" signal; fall back to it only
-		# for the rare track that has no id.
+		# store the durable bandcamp:// URL so queued/favourited items
+		# survive token expiry; streaming_url stays the "is playable" signal
 		my $playUrl;
 		if ($track->{streaming_url}) {
 			$playUrl = track_url($track->{track_id})

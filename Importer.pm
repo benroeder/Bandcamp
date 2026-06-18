@@ -151,7 +151,7 @@ sub _prepareTrack {
 
 	return unless $track && $track->{streaming_url};
 
-	my $url = sprintf('bandcamp://%s.mp3', $track->{track_id});
+	my $url = Plugins::Bandcamp::API::Common::track_url($track->{track_id});
 
 	Plugins::Bandcamp::API::Common::cache_track_info($track, $album);
 

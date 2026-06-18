@@ -188,11 +188,8 @@ sub track_key {
 	return '';
 }
 
-# Inverse of track_key: the durable, re-resolvable URL for a track id.
-# ProtocolHandler::getNextTrack re-resolves a fresh signed stream from a
-# bandcamp:// URL on every play, so favourites and queues built from this
-# survive the bcbits stream token expiring. Single source of truth for the
-# bandcamp:// form (previously inlined in the Importer).
+# durable bandcamp:// URL for a track id; re-resolved at play time, so
+# saved favourites and queues survive the stream token expiring
 sub track_url {
 	my $id = shift;
 	return $id ? "bandcamp://$id.mp3" : undef;
