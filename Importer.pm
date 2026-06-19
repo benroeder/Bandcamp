@@ -17,6 +17,8 @@ use Slim::Utils::Log;
 use Slim::Utils::Prefs;
 use Slim::Utils::Strings qw(string);
 
+use Plugins::Bandcamp::API::Common;
+
 use constant CAN_IMPORTER => (Slim::Utils::Versions->compareVersions($::VERSION, '8.0.0') >= 0);
 
 my $log = logger('plugin.bandcamp');
@@ -151,9 +153,9 @@ sub _prepareTrack {
 
 	return unless $track && $track->{streaming_url};
 
-	my $url = Plugins::Bandcamp::API::Common::track_url($track->{track_id});
+	my $url = track_url($track->{track_id});
 
-	Plugins::Bandcamp::API::Common::cache_track_info($track, $album);
+	cache_track_info($track, $album);
 
 	my $attributes = {
 		url          => $url,
