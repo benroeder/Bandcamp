@@ -5,7 +5,7 @@ use strict;
 use Exporter::Lite;
 
 our @EXPORT = qw(
-	cache_track_info get_artwork_url_from_id track_key
+	cache_track_info get_artwork_url_from_id track_key track_url
 	BASE_URL CACHE_TTL META_CACHE_TTL USER_CACHE_TTL
 );
 
@@ -186,6 +186,13 @@ sub track_key {
 	}
 
 	return '';
+}
+
+# durable bandcamp:// URL for a track id; re-resolved at play time, so
+# saved favourites and queues survive the stream token expiring
+sub track_url {
+	my $id = shift;
+	return $id ? "bandcamp://$id.mp3" : undef;
 }
 
 # 0 => original (size & format, don't use extension)
